@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<html>
+  <head>
+    <style type="text/css">
+        body { 
+            font-family: sans-serif; 
+        }
+        .uploadform {
+            border: solid black 1pt;
+            display: inline-block;
+            padding: 10pt;
+        }
+        .fileinfo {
+            font-family: sans-serif;
+            font-size: 10pt;
+        }
+        .filediv {
+            display: inline-block; 
+            border: 1pt solid lightgray; 
+            padding: 2pt;
+        }
+        .uploadbutton {
+            font-size: 12pt;
+        }
+        .statustext_good {
+            color: green;
+        }
+        .statustext_bad {
+            color: red;
+        }
+        .statustext_neutral {
+            color: gray;
+        }
+    </style>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <!--<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>-->
+	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.650.0.min.js"></script>
+    <script src="./uploader.js"></script>
+    <title>NeMo 2.0 lesion mask upload</title>
+  </head>
+  <body>
+    <h1>Upload lesion mask to NeMo 2.0</h1>
+    <div id="app" class="uploadform"></div>
+    <script>
+       function getHtml(template) {
+          return template.join('\n');
+       }
+       showUploader();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+{
+    "ami": "ami-0cae8b732a1b5b582",
+    "region": "us-east-1",
+    "instance_type": "r5a.4xlarge",
+    "ssh_key_name": "kjwcm",
+    "security_group_ids": [
+        "sg-0d34eb76cd42d74fe"
+    ],
+    "iam_instance_profile": {
+        "Name": "nemo_ec2_role"
+    },
+    "block_device_mapping": [{
+        "DeviceName": "/dev/sda1",
+        "Ebs": {
+            "VolumeType": "gp2",
+            "VolumeSize": 750,
+            "DeleteOnTermination": true
+        }
+    }],
+    "instance_initiated_shutdown_behavior": "terminate",
+    "filter_tag_key": "Purpose",
+    "filter_tag_value": "data-processing",
+    "set_new_instance_tags": [
+        {
+            "Key": "Purpose",
+            "Value": "data-processing"
+        },
+        {
+            "Key": "Name",
+            "Value": "NeMo-runner"
+        }
+    ]
+}

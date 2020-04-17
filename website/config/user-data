@@ -1,0 +1,5 @@
+#!/bin/bash
+
+aws s3 cp s3://kuceyeski-wcm-web-upload/config/nemo_startup.sh /home/ubuntu/
+su ubuntu /home/ubuntu/nemo_startup.sh 2>&1 > /home/ubuntu/nemo_log.txt
+shutdown -h now
