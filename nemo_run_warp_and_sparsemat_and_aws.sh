@@ -17,7 +17,7 @@ numtracks=5M
 
 bash ${scriptdir}/run_warp_tck_to_mni.sh $subj $algo
 
-python ${scriptdir}/convert_mni_tck_to_sparsemat.py ${subjdir}/CSD_${algo}_${numtracks} ${subjdir}/MNI152_T1_1mm_brain_mask.nii.gz ${subjdir}/${subj}_${algo}_${numtracks}_MNI_sparsemat.mat
+python ${scriptdir}/nemo_convert_mni_tck_to_sparsemat.py ${subjdir}/CSD_${algo}_${numtracks} ${subjdir}/MNI152_T1_1mm_brain_mask.nii.gz ${subjdir}/${subj}_${algo}_${numtracks}_MNI_sparsemat.mat
 
 mv ${subjdir}/CSD_${algo}_${numtracks}_MNI_tdi.nii.gz ${subjdir}/${subj}_${algo}_${numtracks}_MNI_tdi.nii.gz 
 

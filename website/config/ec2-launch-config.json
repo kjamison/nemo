@@ -1,5 +1,5 @@
 {
-    "ami": "ami-0cae8b732a1b5b582",
+    "ami": "ami-0e7f958090b609397",
     "region": "us-east-1",
     "instance_type": "r5a.4xlarge",
     "ssh_key_name": "kjwcm",
@@ -18,16 +18,16 @@
         }
     }],
     "instance_initiated_shutdown_behavior": "terminate",
-    "filter_tag_key": "Purpose",
-    "filter_tag_value": "data-processing",
+    "filter_tag_key": "Name",
+    "filter_tag_value": "NeMo-runner",
     "set_new_instance_tags": [
-        {
-            "Key": "Purpose",
-            "Value": "data-processing"
-        },
         {
             "Key": "Name",
             "Value": "NeMo-runner"
+        },
+        {
+            "Key": "nemo_version",
+            "Value": "2.0a2"
         }
     ]
 }

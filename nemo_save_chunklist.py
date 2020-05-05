@@ -3,11 +3,14 @@ import numpy as np
 from scipy.io import loadmat
 import sys
 import time
-
+import nibabel as nib
 
 subjectlistfile=sys.argv[1]
 fileroot=sys.argv[2]
 outfile=sys.argv[3]
+refvolfile=None
+if len(sys.argv)>4:
+	refvolfile=sys.argv[4]
 
 subjfid=open(subjectlistfile,'r')
 subjects=[x.strip() for x in subjfid.readlines()]
@@ -19,8 +22,12 @@ numtrackstr='5M'
 numsubj=len(subjects)
 
 #############
-
-volshape=np.array([182,218,182])
+if refvolfile:
+    refimg=nib.load(refvolfile)
+    volshape=refimg.shape
+else:
+    volshape=np.array([182,218,182])
+    
 chunkvoxsize=10
 chunksize=chunkvoxsize*chunkvoxsize*chunkvoxsize
 chunkvec_x=np.int32(np.floor(np.arange(volshape[0])/chunkvoxsize))
