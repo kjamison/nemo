@@ -11,6 +11,7 @@ import time
 BUCKET_NAME = "kuceyeski-wcm-web-upload"
 CONFIG_FILE_KEY = "config/ec2-launch-config.json"
 USER_DATA_FILE_KEY = "config/user-data"
+USER_DATA_FILE_KEY_DEBUG = "config/user-data-debug"
 BUCKET_INPUT_DIR = "inputs"
 BUCKET_OUTPUT_DIR = "outputs"
 
@@ -20,9 +21,12 @@ RESULT_EMAIL_SENDER = "NeMo Notification <nemo-notification@med.cornell.edu>"
 OUTPUT_EXPIRATION_STRING = "7 days"
 OUTPUT_EXPIRATION_SECONDS = 604800
 
+
+#note: these are set in the "Environment Variables" section of the AWS Lambda configuration console for this script
 IAM_USER_KEY=os.environ['IAM_USER_KEY']
 IAM_USER_SECRET=os.environ['IAM_USER_SECRET']
 COCO_PASSWORD=os.environ['COCO_PASSWORD']
+
 
 #note: 600gb nemo ami = ami-0cae8b732a1b5b582
 #currently using KL3 for testing: ami-0d684e7eb59c59df3
@@ -344,7 +348,11 @@ def lambda_handler(raw_event, context):
             print("[INFO] Could not find even a single running instance matching the desired tag, launching a new one")
 
             # retrieve EC2 user-data for launch
-            result = S3.get_object(Bucket=BUCKET_NAME, Key=USER_DATA_FILE_KEY)
+            if 'debug' in s3tagdict: 
+                #read debug-mode user-data file
+                result = S3.get_object(Bucket=BUCKET_NAME, Key=USER_DATA_FILE_KEY_DEBUG)
+            else:
+                result = S3.get_object(Bucket=BUCKET_NAME, Key=USER_DATA_FILE_KEY)
             user_data = result["Body"].read()
             print(f"UserData from S3: {user_data}")
 
@@ -382,21 +390,21 @@ def lambda_handler(raw_event, context):
                 if re.match('.+lesion_orig\.png',outputimg_name[i]):
                     newlabel='Input lesion mask'
                     newindex=0
-                elif re.match('.+chaco_mean\.png',outputimg_name[i]):
-                    newlabel='ChaCo mean'
-                    newindex=1
-                elif re.match('.+chaco_smooth.*mean\.png',outputimg_name[i]):
+                elif re.match('.+chaco(vol_.+)?_smooth.*_mean\.png',outputimg_name[i]):
                     newlabel='mean(smoothed ChaCo)'
                     newindex=2
+                elif re.match('.+chaco(vol_.+)?_mean\.png',outputimg_name[i]):
+                    newlabel='ChaCo mean'
+                    newindex=1
                 elif re.match('.+lesion_orig_listmean\.png',outputimg_name[i]):
                     newlabel='listmean(Input lesion masks)'
                     newindex=0
-                elif re.match('.+chaco_listmean\.png',outputimg_name[i]):
-                    newlabel='listmean(ChaCo mean)'
-                    newindex=1
-                elif re.match('.+chaco_smooth.*listmean\.png',outputimg_name[i]):
+                elif re.match('.+chaco(vol_.+)?_smooth.*_listmean\.png',outputimg_name[i]):
                     newlabel='listmean(mean(smoothed ChaCo))'
                     newindex=2
+                elif re.match('.+chaco(vol_.+)?_listmean\.png',outputimg_name[i]):
+                    newlabel='listmean(ChaCo mean)'
+                    newindex=1
 
                 if newindex >= 0:
                     newurl=S3_as_user.generate_presigned_url(ClientMethod='get_object', Params={'Bucket':bucket,'Key':outputimg_key[i]}, ExpiresIn=OUTPUT_EXPIRATION_SECONDS)

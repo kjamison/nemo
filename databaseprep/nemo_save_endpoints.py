@@ -43,6 +43,13 @@ def save_endpoints(subjlist,outfile1,outfile2):
 		idx=np.argsort(i)
 		isort=i[idx]
 		jsort=j[idx]
+        #B generally does NOT contain 10M nonzeros, usually has a few hundred fewer. why?
+        #when we read in track data, the streamlines are initially concatenated and separated by nans
+        #when we store this, we remove sequential dupes and we store data[~dnan]
+        #so apparently a few hundred streamlines only have a few duplicate voxels and thus don't end up
+        #in the final sparsemat?
+        #Then when we store in endpoint1 and endpoint2, some of the streamline endpoints are STILL "voxel 0" after filling in
+        #because they didn't have a value for that streamline
 		if len(endpoint1) == 0:
 			endpoint1=np.zeros((len(subjlist),B.shape[0]),dtype=np.uint32)
 			endpoint2=np.zeros((len(subjlist),B.shape[0]),dtype=np.uint32)
@@ -123,6 +130,9 @@ P.close()
 
 
 endpointmask_allsubj=sparse.vstack(endpointmask_allsubj)
+#endpoints for "voxel 0" (corner voxel) are spurious from streamlines that got filtered out during sparsemat creation
+endpointmask_allsubj[:,0]=0
+endpointmask_allsubj.eliminate_zeros()
 
 print('Creating masks took %.3f seconds' % (time.time()-starttime))
 

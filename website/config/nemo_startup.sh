@@ -23,21 +23,31 @@ mkdir -p ${NEMODIR}
 ###################################
 instanceid=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id)
 region=$(curl --silent --fail http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
-aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" > $HOME/nemo_tags.txt
+aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > $HOME/nemo_tags.txt
 
-s3path=$(jq --raw-output '.Tags[] | select(.Key=="s3path") | .Value' $HOME/nemo_tags.txt)
-nemo_version=$(jq --raw-output '.Tags[] | select(.Key=="nemo_version") | .Value' $HOME/nemo_tags.txt)
-s3nemoroot=$(jq --raw-output '.Tags[] | select(.Key=="s3nemoroot") | .Value' $HOME/nemo_tags.txt)
-origfilename=$(jq --raw-output '.Tags[] | select(.Key=="filename") | .Value' $HOME/nemo_tags.txt)
-origtimestamp=$(jq --raw-output '.Tags[] | select(.Key=="timestamp") | .Value' $HOME/nemo_tags.txt)
-origtimestamp_unix=$(jq --raw-output '.Tags[] | select(.Key=="unixtime") | .Value' $HOME/nemo_tags.txt)
-email=$(jq --raw-output '.Tags[] | select(.Key=="email") | .Value' $HOME/nemo_tags.txt)
-output_allref=$(jq --raw-output '.Tags[] | select(.Key=="output_allref") | .Value' $HOME/nemo_tags.txt | tr "[A-Z]" "[a-z]")
-do_smoothing=$(jq --raw-output '.Tags[] | select(.Key=="smoothing") | .Value' $HOME/nemo_tags.txt)
-do_siftweights=$(jq --raw-output '.Tags[] | select(.Key=="siftweights") | .Value' $HOME/nemo_tags.txt)
-smoothfwhm=$(jq --raw-output '.Tags[] | select(.Key=="smoothfwhm") | .Value' $HOME/nemo_tags.txt)
-s3direct_outputlocation=$(jq --raw-output '.Tags[] | select(.Key=="s3direct_outputlocation") | .Value' $HOME/nemo_tags.txt)
-status_suffix=$(jq --raw-output '.Tags[] | select(.Key=="status_suffix") | .Value' $HOME/nemo_tags.txt)
+#Download the config file and append it to the ec2 instance tags
+s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' $HOME/nemo_tags.txt)
+aws s3 cp s3://${s3path}_config.json $HOME/tmp_config.json
+jq --raw-output '.[]' $HOME/tmp_config.json >> $HOME/nemo_tags.txt
+rm -f $HOME/tmp_config.json
+
+#(note: there might be duplicates between instance tags and config, so take head -n1)
+nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' $HOME/nemo_tags.txt | head -n1)
+s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' $HOME/nemo_tags.txt | head -n1)
+origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' $HOME/nemo_tags.txt | head -n1)
+origtimestamp=$(jq --raw-output 'select(.Key=="timestamp") | .Value' $HOME/nemo_tags.txt | head -n1)
+origtimestamp_unix=$(jq --raw-output 'select(.Key=="unixtime") | .Value' $HOME/nemo_tags.txt | head -n1)
+email=$(jq --raw-output 'select(.Key=="email") | .Value' $HOME/nemo_tags.txt | head -n1)
+output_allref=$(jq --raw-output 'select(.Key=="output_allref") | .Value' $HOME/nemo_tags.txt | tr "[A-Z]" "[a-z]" | head -n1)
+do_smoothing=$(jq --raw-output 'select(.Key=="smoothing") | .Value' $HOME/nemo_tags.txt | head -n1)
+do_siftweights=$(jq --raw-output 'select(.Key=="siftweights") | .Value' $HOME/nemo_tags.txt | head -n1)
+do_cumulative=$(jq --raw-output 'select(.Key=="cumulative") | .Value' $HOME/nemo_tags.txt | head -n1)
+smoothfwhm=$(jq --raw-output 'select(.Key=="smoothfwhm") | .Value' $HOME/nemo_tags.txt | head -n1)
+smoothmode=$(jq --raw-output 'select(.Key=="smoothmode") | .Value' $HOME/nemo_tags.txt | head -n1)
+s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation") | .Value' $HOME/nemo_tags.txt | head -n1)
+status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' $HOME/nemo_tags.txt | head -n1)
+output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' $HOME/nemo_tags.txt | head -n1)
+do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' $HOME/nemo_tags.txt | head -n1)
 
 #parcellation:
 #provide a single nifti file, or a set of them?, or a name for one of our preset ones
@@ -128,27 +138,52 @@ fi
 
 smoothedarg=""
 smoothingfwhmarg=""
+smoothingmodearg=""
 weightedarg=""
+cumulativearg=""
+continuousarg=""
+debugarg=""
 s3arg=""
 if [ "${do_smoothing}" = "true" ]; then
     smoothedarg="--smoothed"
     smoothingfwhmarg="--smoothfwhm ${smoothfwhm}"
+    if [ "x${smoothmode}" != "x" ]; then
+        smoothingmodearg="--smoothmode ${smoothmode}"
+    fi
 fi
 
 if [ "${do_siftweights}" = "true" ]; then
     weightedarg="--weighted"
 fi
 
+if [ "${do_cumulative}" = "true" ]; then
+    cumulativearg="--cumulative"
+fi
+
+if [ "${do_continuous}" = "true" ]; then
+    continuousarg="--continuous_value"
+fi
+
+if [ "${do_debug}" = "true" ]; then
+    debugarg="--debug"
+fi
+
 if [ "x${s3nemoroot}" != "x" ]; then
     s3arg="--s3nemoroot ${s3nemoroot}"
 fi
+
 
 ###########
 #### need some kind of input/dimension checking HERE, or a way to send log output to end user
 
 #copy latest version of the lesion script
-aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+if [ "${do_debug}" != "true" ]; then
+    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
+    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+else
+    #aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
+    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
 outputbase=${outputdir}/${origfilename_noext}_nemo_output
@@ -165,6 +200,85 @@ echo "NeMo version ${nemo_version}" > ${logfile}
 date --utc >> ${logfile}
 cd ${NEMODIR}
 
+#############
+# parse output space options (res, parc)
+
+#atlaslist="aal cc200 cc400"
+
+atlasdir=$HOME/nemo_atlases
+atlaslistfile=${atlasdir}/atlas_list.csv
+
+aws s3 sync s3://kuceyeski-wcm-web-upload/nemo_atlases ${atlasdir} --exclude "*.npz"
+
+pairwisearg=""
+parcelarg=""
+resolutionarg=""
+output_pairwiselist=""
+output_allreflist=""
+output_roilistfile=""
+
+for o in $(echo ${output_prefix_list} | tr "," " "); do
+    
+    #file containing ROI definitions
+    out_roilistfile="x"
+    
+    if [[ $o == addparc* ]]; then
+        out_type="parc"
+        #_name,_allref,_pairwise,_filekey?
+        out_name=$(jq --raw-output 'select(.Key=="'${o}_name'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_filekey=$(jq --raw-output 'select(.Key=="'${o}_filekey'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        
+        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' $HOME/nemo_tags.txt | head -n1)
+
+        if [ "x${out_filekey}" != "x" ]; then
+            out_filename=$(basename ${out_filekey})
+            out_filepath=${unzipdir}/${out_filename}
+            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filepath}
+            parcarg_tmp="--parcelvol ${out_filepath}=${out_name}"
+        else
+            #need to search through available atlas files for the one specified by ${out_name}
+            #and assign out_filename=atlases/thatfile.nii.gz
+
+            out_lowername=$(echo ${out_name} | tr "[A-Z]" "[a-z]")
+            atlasline=$(grep -E "^${out_lowername}," ${atlaslistfile})
+            if [ "x${atlasline}" = "x" ]; then
+                echo "Atlas not found: ${out_name}"
+                exit 1
+            fi
+            out_filename=${atlasdir}/$(echo $atlasline | awk -F, '{print $2}')
+            
+            if [ ! -e ${out_filename} ]; then
+                #so we don't have to copy the giant subject-specific files unless we need them
+                aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_atlases/$(basename ${out_filename}) ${out_filename}
+            fi
+            out_roilistfile=${atlasdir}/$(echo $atlasline | awk -F, '{print $3}')
+            parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
+        fi
+        parcelarg+=" ${parcarg_tmp}"
+
+    elif  [[ $o == addres* ]]; then
+        out_type="res"
+        #_res,_allref,_pairwise
+        out_res=$(jq --raw-output 'select(.Key=="'${o}_res'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_name="res${out_res}mm"
+        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        
+        resarg_tmp="--resolution ${out_res}=${out_name}"
+        
+        resolutionarg+=" ${resarg_tmp}"
+    fi
+
+    if [ "${out_pairwise}" = "true" ]; then
+        pairwisearg="--pairwise"
+    fi
+    output_namelist+=" ${out_name}"
+    output_pairwiselist+=" ${out_pairwise}"
+    output_allreflist+=" ${out_allref}"
+    output_roilistfile+=" ${out_roilistfile}"
+done
+#remember: pairwise should be set to "--pairwise" if ANY output asks for it
 
 #############
 #create a lesion glassbrain image to feed back to web app for status update
@@ -205,11 +319,16 @@ while read inputfile; do
         --chunkdir chunkfiles \
         --refvol MNI152_T1_1mm_brain.nii.gz \
         --endpoints nemo_endpoints.npy \
-        --asum nemo_Asum.npz \
-        --asum_weighted nemo_Asum_weighted.npz \
-        --trackweights nemo_siftweights.npy ${s3arg} ${weightedarg} ${smoothedarg} ${smoothingfwhmarg} >> ${logfile} 2>&1
+        --asum nemo_Asum_endpoints.npz \
+        --asum_weighted nemo_Asum_weighted_endpoints.npz \
+        --asum_cumulative nemo_Asum_cumulative.npz \
+        --asum_weighted_cumulative nemo_Asum_weighted_cumulative.npz \
+        --trackweights nemo_siftweights.npy \
+        --tracklengths nemo_tracklengths.npy ${s3arg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
+            ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
     
-    if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then
+    #if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then
+    if [ $(ls ${outputbase_infile}_*.pkl 2>/dev/null | wc -l ) = 0 ]; then
         echo "ChaCo output file not found!" >> ${logfile}
         #output file is missing! what happened? 
         #sudo shutdown -h now
@@ -219,10 +338,23 @@ while read inputfile; do
         success_count=$((success_count+1))
     fi
     
-    if [ "${output_allref}" = "false" ]; then
-        rm -f ${outputbase_infile}_chaco_allref.npz
-    fi
-    
+    o=0
+    for out_name in ${output_namelist}; do
+        o=$((o+1))
+        out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+        out_allref=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+        if [ "${out_allref}" = "false" ]; then
+            rm -f ${outputbase_infile}_chacovol_${out_name}_allref.pkl
+            rm -f ${outputbase_infile}_chacovol_${out_name}_allref_denom.pkl
+        fi
+        if [ "${out_pairwise}" = "false" ]; then
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+        fi
+    done
+
     if [ "${do_s3direct}"  = "1" ]; then
         #copy all data to a new s3 bucket
         aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*"
@@ -231,13 +363,41 @@ done < ${inputfile_listfile}
 
 if [ "${success_count}" -gt "1" ]; then
     python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --jet $(cat ${inputfile_listfile})
-    python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chaco_listmean.png $(ls ${outputdir}/*_chaco_mean.nii.gz)
-    if [ "${do_smoothing}" = "true" ]; then
-        smoothstr=$(basename $(ls ${outputdir}/*smooth*.png | head -n1) | tr "_" "\n" | grep -i smooth | tail -n1)
-        python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chaco_${smoothstr}_listmean.png $(ls ${outputdir}/*_${smoothstr}_mean.nii.gz)
-    fi
+    for out_name in ${output_namelist}; do
+        outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.nii.gz 2>/dev/null)
+        if [ "x${outfile_meanlist}" = "x" ]; then
+            continue
+        fi
+        python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
+        if [ "${do_smoothing}" = "true" ]; then
+            outfile_meanlist=$(ls ${outputdir}/*_${out_name}_${smoothstr}_mean.nii.gz 2>/dev/null)
+            smoothstr=$(basename $(ls ${outputdir}/*_${out_name}_smooth*.png 2>/dev/null | head -n1) 2>/dev/null | tr "_" "\n" | grep -i smooth | tail -n1)
+            if [ "x${outfile_meanlist}" = "x" ] || [ "${smoothstr}" = "x" ]; then
+                continue
+            fi
+            python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
+        fi
+    done
 fi
 
+
+#copy ROI label definitions to output folder (if requested)
+o=0
+for out_name in ${output_namelist}; do
+    o=$((o+1))
+    out_roilistfile=$(echo ${output_roilistfile} | cut -d" " -f$o)
+    if [ "${out_roilistfile}" = "x" ]; then
+        continue
+    fi
+    cp -f ${out_roilistfile} ${outputdir}/
+done
+
+#save subject list to file in output directory:
+python -c 'import numpy as np; chunklist=np.load("nemo_chunklist.npz"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
+
+##########################################################################################
+##########################################################################################
+#copy output directly to S3 or zip and upload to website
 if [ "${do_s3direct}"  = "1" ]; then
     endtime=$(date +%s)
     duration=$(echo "$endtime - $starttime" | bc -l)
@@ -297,4 +457,6 @@ else
     aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
 fi
 
-sudo shutdown -h now
+if [ "${do_debug}" != "true" ]; then
+    sudo shutdown -h now
+fi

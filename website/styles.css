@@ -15,7 +15,13 @@ body {
     border: 1pt solid lightgray; 
     padding: 2pt;
 }
-.uploadbutton {
+.parcdiv {
+    display: block; 
+    border: 1pt solid gray; 
+    padding: 8pt;
+    margin: 4pt;
+}
+.button {
     font-size: 12pt;
 }
 .statustext_good {

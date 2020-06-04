@@ -49,7 +49,7 @@ else:
 		pass
 	elif Ldata.shape == (181,217,181):
 		print('Input was 181x217x181, not the expected 182x218x181. Assuming SPM-based reg and padding end of each dim.')
-		Ldata=np.pad(Ldata,(0,1))
+		Ldata=np.pad(Ldata,(0,1),mode='constant')
 	else:
 		raise('Unexpected size: (%d,%d,%d). Input must be registered to 182x218x182 MNIv6 template (FSL template)', (Ldata.shape))
 
