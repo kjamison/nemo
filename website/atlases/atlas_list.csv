@@ -1,6 +1,7 @@
 aal,AAL116_MNI152_1mm_182x218x182.nii.gz,aal_roi_atlas116.csv
 cc200,cc200_new1mm.nii.gz,cc200_roi_labels.csv
 cc400,cc400_new1mm.nii.gz,cc400_roi_labels.csv
-fs86avg,fs86_allsubj_mode_dil3.nii.gz,fs86_FreeSurferLUT.txt
+fs86avg,fs86_dil3_allsubj_mode.nii.gz,fs86_FreeSurferLUT.txt
 fs86subj,fs86_dil3_allsubj.npz,fs86_FreeSurferLUT.txt
+fs111avg,fs111cereb_dil3_allsubj_mode.nii.gz,fs111cereb_FreeSurferLUT.txt
 fs111subj,fs111cereb_dil3_allsubj.npz,fs111cereb_FreeSurferLUT.txt
