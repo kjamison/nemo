@@ -387,8 +387,8 @@ if [ "${success_count}" -gt "1" ]; then
         fi
         python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
         if [ "${do_smoothing}" = "true" ]; then
-            outfile_meanlist=$(ls ${outputdir}/*_${out_name}_${smoothstr}_mean.nii.gz 2>/dev/null)
             smoothstr=$(basename $(ls ${outputdir}/*_${out_name}_smooth*.png 2>/dev/null | head -n1) 2>/dev/null | tr "_" "\n" | grep -i smooth | tail -n1)
+            outfile_meanlist=$(ls ${outputdir}/*_${out_name}_${smoothstr}_mean.nii.gz 2>/dev/null)
             if [ "x${outfile_meanlist}" = "x" ] || [ "${smoothstr}" = "x" ]; then
                 continue
             fi
