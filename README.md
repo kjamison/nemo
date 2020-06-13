@@ -32,6 +32,7 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 ## Output
 * <code>chacovol</code> = voxelwise or regionwise ChaCo ratio
 * <code>chacoconn</code> = pairwise ChaCo ratio of loss of connections between pairs of voxels and/or ROIs
+    * Note: for parcellations, these will be upper triangular. For voxelwise (including downsampled), this is not guaranteed
 * <code>\_chacovol\_(mean|stdev)</code> = mean and stdev of all 420 HCP-subject ChaCo ratio maps (for voxelwise outputs, these are .nii.gz files)
 * <code>\_chacoconn\_(mean|stdev)</code> = mean and stdev of all 420 HCP-subject pairwise disconnectivity maps
 * <code>chacovol_allref.pkl</code> = ChaCo ratio map for each of the 420 HCP reference subjects

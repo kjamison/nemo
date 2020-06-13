@@ -700,6 +700,11 @@ def map_to_endpoints_conn(isubj):
                 Psparse=Pdict['transform']
             
             chacoconn_parc=Psparse.T.tocsr() @ chacoconn @ Psparse
+            
+            if Pdict['voxmm'] is None:
+                #for parcellations (not downsampled resolutions), make output matrix upper triangular
+                chacoconn_parc=sparse.triu(chacoconn_parc.maximum(chacoconn_parc.T))
+                
             chacovol_parc=sparse.csr_matrix(chacoconn_parc.sum(axis=0)+chacoconn_parc.sum(axis=1).T)
             chacovol_parc.eliminate_zeros()
             
@@ -714,6 +719,9 @@ def map_to_endpoints_conn(isubj):
             if do_compute_denom:
                 Aconnsum_parc=Psparse.T.tocsr() @ Aconnsum @ Psparse
                 Aconnsum_parc.eliminate_zeros()
+                if Pdict['voxmm'] is None:
+                    #for parcellations (not downsampled resolutions), make output matrix upper triangular
+                    Aconnsum_parc=sparse.triu(Aconnsum_parc.maximum(Aconnsum_parc.T))
                 chacofile_subj=tmpdir+'/chacoconn_parc%05d_denom_subj%05d.npz' % (iparc,isubj)
                 sparse.save_npz(chacofile_subj,Aconnsum_parc,compressed=False)
 ###########################################################
