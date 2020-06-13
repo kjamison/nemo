@@ -206,8 +206,11 @@ s3direct_resultpath=s3://${s3direct_outputlocation}/${origfilename_noext}_nemo_o
 mkdir -p $(dirname $outputbase)
 
 #print a nicer version of the tags to the output directory
-echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq --raw-output '.' > ${outputdir}/nemo_config.json
+output_config_file=${outputdir}/nemo_config.json
+output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
+echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq --raw-output '.' > ${output_config_file}
 #cp -f ${HOME}/nemo_tags.txt ${outputdir}/
+aws s3 cp ${output_config_file} ${output_config_s3file}
 
 echo "NeMo version ${nemo_version}" > ${logfile}
 date --utc >> ${logfile}
@@ -474,6 +477,14 @@ else
     output_tagstring+='&successcount='${success_count}'&inputfilecount_orig='${inputfile_count_orig}'&outputsize='${outputsize}
     aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
 fi
+
+#add final status, duration, and output path to updated log on s3
+#(note: put quotes around each jq value in case they have spaces)
+finaljson=${output_config_file}_final.json
+output_expiration=$(aws s3api head-object --bucket ${outputbucket} --key ${outputkey} | jq --raw-output ".Expiration // empty" | sed -E 's#expiry-date=\"([^\"]+)\".+$#\1#')
+jq --raw-output '.inputfilecount="'"${inputfile_count}"'" | .successcount="'"${success_count}"'" | .duration="'"${duration}"'" | .finalstatus="'"${finalstatus}"'" | .outputsize="'"${outputsize}"'" | .s3resultpath="'"${outputbucket}/${outputkey}"'" | .s3expiration="'"${output_expiration}"'"' ${output_config_file} > ${finaljson}
+aws s3 cp ${finaljson} ${output_config_s3file}
+aws s3 cp ${logfile} s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_log.txt
 
 if [ "${do_debug}" != "true" ]; then
     sudo shutdown -h now
