@@ -196,18 +196,6 @@ function getParcSelectHtml(id){
         htmlTemplate.push('<option value="'+atlasnames[i]+'">'+atlasinfo[atlasnames[i]]['name']+'</option>');
     }
 
-    /*
-    htmlTemplate.push('<option value="aal">AAL</option>');
-    htmlTemplate.push('<option value="cc200">CC200</option>');
-    htmlTemplate.push('<option value="cc400">CC400</option>');
-    htmlTemplate.push('<option value="shen268">Shen268</option>');
-    htmlTemplate.push('<option value="fs86avg">FreeSurferAverage86 (DKT+aseg)</option>');
-    htmlTemplate.push('<option value="fs86subj">FreeSurfer86 (subj-specific DKT+aseg)</option>');
-    htmlTemplate.push('<option value="fs111subj">FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)</option>');
-    //htmlTemplate.push('<option value="yeo7">Yeo2011 7-networks</option>');
-    //htmlTemplate.push('<option value="yeo17">Yeo2011 17-networks</option>');
-    //htmlTemplate.push('<option value="aparc">aparc+aseg</option>');
-    //htmlTemplate.push('<option value="aparc2009">aparc.a2009s+aseg</option>');*/
     htmlTemplate.push('<option value="custom">[Upload atlas]</option>');
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
