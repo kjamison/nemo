@@ -21,33 +21,37 @@ env
 NEMODIR=${HOME}/nemo2
 mkdir -p ${NEMODIR}
 ###################################
+
+tagfile=${HOME}/nemo_tags.txt
+
 instanceid=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id)
 region=$(curl --silent --fail http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
-aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > $HOME/nemo_tags.txt
+aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > ${tagfile}
 
 #Download the config file and append it to the ec2 instance tags
-s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' $HOME/nemo_tags.txt)
+s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' ${tagfile})
 aws s3 cp s3://${s3path}_config.json $HOME/tmp_config.json
-jq --raw-output '.[]' $HOME/tmp_config.json >> $HOME/nemo_tags.txt
+jq --raw-output '.[]' $HOME/tmp_config.json >> ${tagfile}
 rm -f $HOME/tmp_config.json
 
 #(note: there might be duplicates between instance tags and config, so take head -n1)
-nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' $HOME/nemo_tags.txt | head -n1)
-s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' $HOME/nemo_tags.txt | head -n1)
-origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' $HOME/nemo_tags.txt | head -n1)
-origtimestamp=$(jq --raw-output 'select(.Key=="timestamp") | .Value' $HOME/nemo_tags.txt | head -n1)
-origtimestamp_unix=$(jq --raw-output 'select(.Key=="unixtime") | .Value' $HOME/nemo_tags.txt | head -n1)
-email=$(jq --raw-output 'select(.Key=="email") | .Value' $HOME/nemo_tags.txt | head -n1)
-output_allref=$(jq --raw-output 'select(.Key=="output_allref") | .Value' $HOME/nemo_tags.txt | tr "[A-Z]" "[a-z]" | head -n1)
-do_smoothing=$(jq --raw-output 'select(.Key=="smoothing") | .Value' $HOME/nemo_tags.txt | head -n1)
-do_siftweights=$(jq --raw-output 'select(.Key=="siftweights") | .Value' $HOME/nemo_tags.txt | head -n1)
-do_cumulative=$(jq --raw-output 'select(.Key=="cumulative") | .Value' $HOME/nemo_tags.txt | head -n1)
-smoothfwhm=$(jq --raw-output 'select(.Key=="smoothfwhm") | .Value' $HOME/nemo_tags.txt | head -n1)
-smoothmode=$(jq --raw-output 'select(.Key=="smoothmode") | .Value' $HOME/nemo_tags.txt | head -n1)
-s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation") | .Value' $HOME/nemo_tags.txt | head -n1)
-status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' $HOME/nemo_tags.txt | head -n1)
-output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' $HOME/nemo_tags.txt | head -n1)
-do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' $HOME/nemo_tags.txt | head -n1)
+nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' ${tagfile} | head -n1)
+s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' ${tagfile} | head -n1)
+s3configbucket=$(jq --raw-output 'select(.Key=="s3configbucket") | .Value' ${tagfile} | head -n1)
+origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | head -n1)
+origtimestamp=$(jq --raw-output 'select(.Key=="timestamp") | .Value' ${tagfile} | head -n1)
+origtimestamp_unix=$(jq --raw-output 'select(.Key=="unixtime") | .Value' ${tagfile} | head -n1)
+email=$(jq --raw-output 'select(.Key=="email") | .Value' ${tagfile} | head -n1)
+output_allref=$(jq --raw-output 'select(.Key=="output_allref") | .Value' ${tagfile} | tr "[A-Z]" "[a-z]" | head -n1)
+do_smoothing=$(jq --raw-output 'select(.Key=="smoothing") | .Value' ${tagfile} | head -n1)
+do_siftweights=$(jq --raw-output 'select(.Key=="siftweights") | .Value' ${tagfile} | head -n1)
+do_cumulative=$(jq --raw-output 'select(.Key=="cumulative") | .Value' ${tagfile} | head -n1)
+smoothfwhm=$(jq --raw-output 'select(.Key=="smoothfwhm") | .Value' ${tagfile} | head -n1)
+smoothmode=$(jq --raw-output 'select(.Key=="smoothmode") | .Value' ${tagfile} | head -n1)
+s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation") | .Value' ${tagfile} | head -n1)
+status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' ${tagfile} | head -n1)
+output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' ${tagfile} | head -n1)
+do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
 
 #parcellation:
 #provide a single nifti file, or a set of them?, or a name for one of our preset ones
@@ -59,6 +63,11 @@ outputbucket=${inputbucket}
 
 inputfile_maxcount=10
 unzipdir=
+
+
+#config_bucket="kuceyeski-wcm-web-upload"
+#config_bucket="kuceyeski-wcm-web"
+config_bucket=${s3configbucket}
 
 #################################
 if [ "x${s3direct_outputlocation}" != "x" ]; then
@@ -178,11 +187,11 @@ fi
 
 #copy latest version of the lesion script
 if [ "${do_debug}" != "true" ]; then
-    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
+    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
 else
-    #aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-    aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+    #aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
+    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
 fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
@@ -196,6 +205,10 @@ s3direct_resultpath=s3://${s3direct_outputlocation}/${origfilename_noext}_nemo_o
 
 mkdir -p $(dirname $outputbase)
 
+#print a nicer version of the tags to the output directory
+echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq --raw-output '.' > ${outputdir}/nemo_config.json
+#cp -f ${HOME}/nemo_tags.txt ${outputdir}/
+
 echo "NeMo version ${nemo_version}" > ${logfile}
 date --utc >> ${logfile}
 cd ${NEMODIR}
@@ -208,7 +221,8 @@ cd ${NEMODIR}
 atlasdir=$HOME/nemo_atlases
 atlaslistfile=${atlasdir}/atlas_list.csv
 
-aws s3 sync s3://kuceyeski-wcm-web-upload/nemo_atlases ${atlasdir} --exclude "*.npz"
+#aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz"
+aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz"
 
 pairwisearg=""
 parcelarg=""
@@ -225,11 +239,11 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     if [[ $o == addparc* ]]; then
         out_type="parc"
         #_name,_allref,_pairwise,_filekey?
-        out_name=$(jq --raw-output 'select(.Key=="'${o}_name'") | .Value' $HOME/nemo_tags.txt | head -n1)
-        out_filekey=$(jq --raw-output 'select(.Key=="'${o}_filekey'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_name=$(jq --raw-output 'select(.Key=="'${o}_name'") | .Value' ${tagfile} | head -n1)
+        out_filekey=$(jq --raw-output 'select(.Key=="'${o}_filekey'") | .Value' ${tagfile} | head -n1)
         
-        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' $HOME/nemo_tags.txt | head -n1)
-        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
+        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
 
         if [ "x${out_filekey}" != "x" ]; then
             out_filename=$(basename ${out_filekey})
@@ -250,7 +264,8 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
             
             if [ ! -e ${out_filename} ]; then
                 #so we don't have to copy the giant subject-specific files unless we need them
-                aws s3 cp s3://kuceyeski-wcm-web-upload/nemo_atlases/$(basename ${out_filename}) ${out_filename}
+                #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
             fi
             out_roilistfile=${atlasdir}/$(echo $atlasline | awk -F, '{print $3}')
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
@@ -260,10 +275,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     elif  [[ $o == addres* ]]; then
         out_type="res"
         #_res,_allref,_pairwise
-        out_res=$(jq --raw-output 'select(.Key=="'${o}_res'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_res=$(jq --raw-output 'select(.Key=="'${o}_res'") | .Value' ${tagfile} | head -n1)
         out_name="res${out_res}mm"
-        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' $HOME/nemo_tags.txt | head -n1)
-        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' $HOME/nemo_tags.txt | head -n1)
+        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
+        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
         
@@ -342,10 +357,12 @@ while read inputfile; do
     for out_name in ${output_namelist}; do
         o=$((o+1))
         out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
-        out_allref=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+        out_allref=$(echo ${output_allreflist} | cut -d" " -f$o)
         if [ "${out_allref}" = "false" ]; then
             rm -f ${outputbase_infile}_chacovol_${out_name}_allref.pkl
             rm -f ${outputbase_infile}_chacovol_${out_name}_allref_denom.pkl
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
         fi
         if [ "${out_pairwise}" = "false" ]; then
             rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
@@ -433,6 +450,7 @@ if [ "${do_s3direct}"  = "1" ]; then
 else
     cd ${outputdir}
     outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}.zip
+    rm -f ${outputfilename}
     ziplistfile=${outputbase}_ziplist.txt
     du -h * > ${ziplistfile}
     zip ${outputfilename} * -x "*_ziplist.txt"

@@ -8,7 +8,8 @@ from botocore.client import Config
 import os
 import time
 
-BUCKET_NAME = "kuceyeski-wcm-web-upload"
+CONFIG_BUCKET_NAME = "kuceyeski-wcm-web"
+UPLOAD_BUCKET_NAME = "kuceyeski-wcm-web-upload"
 CONFIG_FILE_KEY = "config/ec2-launch-config.json"
 USER_DATA_FILE_KEY = "config/user-data"
 USER_DATA_FILE_KEY_DEBUG = "config/user-data-debug"
@@ -196,70 +197,6 @@ def sendCompletionEmail(useremail, duration_string, filesize_string, downloadurl
         print(response['MessageId'])
         
     return BODY_HTML
-    
-
-def sendBadPasswordEmail(useremail, origfilename, s3region, submittime_string):
-    SENDER = RESULT_EMAIL_SENDER
-    RECIPIENT = useremail
-
-    AWS_REGION = s3region
-    SUBJECT = "NeMo processing error (Incorrect password)! [%s]" % (origfilename)
-        
-    # The email body for recipients with non-HTML email clients.
-    BODY_TEXT = ("You entered the wrong password for %s!\r\n"
-             "Job submitted at %s\r\n"
-            ) % (origfilename, submittime_string)
-            
-    # The HTML body of the email.
-    BODY_HTML = """<html>
-<body style='font-family: sans-serif'>
-  <h1>You entered the wrong password for %s!</h1>
-  Job submitted at %s</p>
-</body>
-</html>
-            """ % (origfilename, submittime_string)
-
-    CHARSET = "UTF-8"
-
-    # Create a new SES resource and specify a region.
-    client = boto3.client('ses',region_name=AWS_REGION)
-
-    # Try to send the email.
-    try:
-        #Provide the contents of the email.
-        response = client.send_email(
-            Destination={
-                'ToAddresses': [
-                    RECIPIENT,
-                ],
-            },
-            Message={
-                'Body': {
-                    'Html': {
-                        'Charset': CHARSET,
-                        'Data': BODY_HTML,
-                    },
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': BODY_TEXT,
-                    },
-                },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': SUBJECT,
-                },
-            },
-            Source=SENDER,
-            # If you are not using a configuration set, comment or delete the
-            # following line
-            #ConfigurationSetName=CONFIGURATION_SET,
-        )
-    # Display an error if something goes wrong.	
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    else:
-        print("Email sent! Message ID:"),
-        print(response['MessageId'])
         
 def lambda_handler(raw_event, context):
     print(f"Received raw event: {raw_event}")
@@ -279,6 +216,7 @@ def lambda_handler(raw_event, context):
         s3tagdict['md5']=S3.head_object(Bucket=bucket, Key=key)['ETag'].strip('"')
         s3tagdict['s3path']=bucket+"/"+key
         s3tagdict['s3nemoroot']=NEMO_DATA_STORAGE_LOCATION
+        s3tagdict['s3configbucket']=CONFIG_BUCKET_NAME
         
         if not 'email' in s3tagdict:
             #this is not a valid input or final result file (might be an image we uploaded to the bucket)
@@ -294,7 +232,6 @@ def lambda_handler(raw_event, context):
                 print(f"Bad password!")
                 submittime=int(s3tagdict['unixtime'])
                 submittime_string=time.strftime('%Y-%m-%d %H:%M:%S %Z',time.gmtime(int(submittime/1000)))
-                #sendBadPasswordEmail(s3tagdict['email'], s3tagdict['filename'], record['awsRegion'], submittime_string)
                 #S3.delete_object(Bucket=bucket, Key=key)
                 S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'error', Tagging='password_status=error')
                 return
@@ -304,11 +241,11 @@ def lambda_handler(raw_event, context):
             del s3tagdict['outputlocation']
             
         # get config from config file stored in S3
-        result = S3.get_object(Bucket=BUCKET_NAME, Key=CONFIG_FILE_KEY)
+        result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=CONFIG_FILE_KEY)
         ec2_config = json.loads(result["Body"].read().decode())
         
         # launch new EC2 instance if necessary
-        if bucket == BUCKET_NAME and key.startswith(f"{BUCKET_INPUT_DIR}/"):
+        if bucket == UPLOAD_BUCKET_NAME and key.startswith(f"{BUCKET_INPUT_DIR}/"):
             #add s3 file tags to the instance tags
             ec2_config['set_new_instance_tags']+=dict2json(s3tagdict)
             print(f"Config from S3: {ec2_config}")
@@ -350,9 +287,9 @@ def lambda_handler(raw_event, context):
             # retrieve EC2 user-data for launch
             if 'debug' in s3tagdict: 
                 #read debug-mode user-data file
-                result = S3.get_object(Bucket=BUCKET_NAME, Key=USER_DATA_FILE_KEY_DEBUG)
+                result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=USER_DATA_FILE_KEY_DEBUG)
             else:
-                result = S3.get_object(Bucket=BUCKET_NAME, Key=USER_DATA_FILE_KEY)
+                result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=USER_DATA_FILE_KEY)
             user_data = result["Body"].read()
             print(f"UserData from S3: {user_data}")
 
@@ -366,7 +303,7 @@ def lambda_handler(raw_event, context):
             }
 
         # terminate all tagged EC2 instances
-        if bucket == BUCKET_NAME and key.startswith(f"{BUCKET_OUTPUT_DIR}/"):
+        if bucket == UPLOAD_BUCKET_NAME and key.startswith(f"{BUCKET_OUTPUT_DIR}/"):
             s3region=record['awsRegion']
             
             #create a new S3 client using the IAM user that can create 7-day presigned URLs
@@ -418,7 +355,7 @@ def lambda_handler(raw_event, context):
             outputfile_ziplist_key=[r['Key'] for r in outputfiles_response['Contents'] if r['Key'].endswith("_ziplist.txt")]
             if len(outputfile_ziplist_key) > 0:
                 ziplist_key=outputfile_ziplist_key[0]
-                ziplist_result = S3.get_object(Bucket=BUCKET_NAME, Key=ziplist_key)
+                ziplist_result = S3.get_object(Bucket=bucket, Key=ziplist_key)
                 ziplist_string = ziplist_result["Body"].read().decode()
                 print(f"Output ziplist ({ziplist_key}):\n{ziplist_string}")
             

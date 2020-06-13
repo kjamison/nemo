@@ -20,9 +20,12 @@ outputbase=sys.argv[4]
 numdil=0
 if len(sys.argv) > 5:
     numdil=round(float(sys.argv[5]))
-tmpdir=None
+maskfile=None
 if len(sys.argv) > 6:
-    tmpdir=sys.argv[6]
+    maskfile=sys.argv[6]
+tmpdir=None
+if len(sys.argv) > 7:
+    tmpdir=sys.argv[7]
 
 outputdir=Path(outputbase).parent.as_posix()
 outputbase_file=Path(outputbase).name
@@ -35,10 +38,13 @@ subjects=chunklist['subjects']
 
 refimg=nib.load(reffile)
 
+maskarg=""
+if maskfile is not None and Path(maskfile).is_file():
+    maskarg="-mas %s" % (maskfile)
 #parcname=fs86, fs86_sgmfix, fs111cereb, fs111cereb_sgmfix
 
 #each parcname and dilation takes 5-15min (shorter=no dilation)
-#for p in fs86 fs111cereb fs86_sgmfix fs111cereb_sgmfix; do outd=subjparc; mkdir -p $outd; tmpd=parctemp_${p}; mkdir -p $tmpd; for d in 0 1 2 3; do python nemo_merge_subject_parc_to_sparsemat.py nemo2/nemo_chunklist.npz ${p} nemo2/MNI152_T1_1mm_brain.nii.gz $outd/${p}_dil${d}_allsubj $d $tmpd; aws s3 sync $outd/ s3://kuceyeski-wcm-web-upload/nemo_atlases/ --exclude "*.pkl"; done; done; klaws stop
+#for p in fs86 fs111cereb fs86_sgmfix fs111cereb_sgmfix; do outd=subjparc; mkdir -p $outd; tmpd=parctemp_${p}; mkdir -p $tmpd; for d in 0 1 2 3; do python nemo_merge_subject_parc_to_sparsemat.py nemo2/nemo_chunklist.npz ${p} nemo2/MNI152_T1_1mm_brain.nii.gz $outd/${p}_dil${d}_allsubj $d $m $tmpd; aws s3 sync $outd/ s3://kuceyeski-wcm-web-upload/nemo_atlases/ --exclude "*.pkl"; done; done; klaws stop
 
 s3paths=["s3://kuceyeski-wcm-temp/kwj2001/mrtrix_tckgen_%s/%s_MNI.nii.gz" % (s,parcname) for s in subjects]
 

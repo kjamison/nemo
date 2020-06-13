@@ -12,6 +12,17 @@ var uploadTimerCount = 0;
 var reslist=[];
 var parclist=[];
 
+var atlasinfo = {'aal': {'name': 'AAL', 'thumbnail':'images/thumbnail_aal.png','roicount':116},
+    'cc200': {'name': 'CC200', 'thumbnail':'images/thumbnail_cc200.png','roicount':200},
+    'cc400': {'name': 'CC400', 'thumbnail':'images/thumbnail_cc400.png','roicount':400},
+    'shen268': {'name': 'Shen268', 'thumbnail':'images/thumbnail_shen268.png','roicount':268},
+    'fs86avg': {'name': 'FreeSurferAverage86 (DKT+aseg)', 'thumbnail':'images/thumbnail_fs86.png','roicount':86},
+    'fs86subj': {'name': 'FreeSurfer86 (subj-specific DKT+aseg)', 'thumbnail':'images/thumbnail_fs86.png','roicount':86},
+    'fs111subj': {'name': 'FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)', 'thumbnail':'images/thumbnail_fs111cereb.png','roicount':111},
+    'yeo7': {'name': 'Yeo2011 7-networks', 'thumbnail':'images/thumbnail_yeo7.png', 'roicount':7},
+    'yeo17': {'name': 'Yeo2011 17-networks', 'thumbnail':'images/thumbnail_yeo17.png', 'roicount':17},
+};
+
 AWS.config.update({
     region: bucketRegion,
     credentials: new AWS.CognitoIdentityCredentials({
@@ -132,7 +143,7 @@ function showUploader(run_internal_script) {
         '</div>',
         '<br/>',
         '<label for="email">E-mail address:</label>',
-        '<input id="email" type="text" value="test@test" size="30"><br/><br/>',
+        '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
         '<label for="fileupload">MNI Lesion Nifti file:</label>',
         '<div class="filediv">',
         '<input id="fileupload" type="file" accept=".gz,.nii,.zip" class="fileinfo">',
@@ -180,14 +191,23 @@ function getResolutionSelectHtml(id){
 function getParcSelectHtml(id){
     htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
+    atlasnames=Object.keys(atlasinfo);
+    for(var i = 0; i < atlasnames.length; i++){
+        htmlTemplate.push('<option value="'+atlasnames[i]+'">'+atlasinfo[atlasnames[i]]['name']+'</option>');
+    }
+
+    /*
     htmlTemplate.push('<option value="aal">AAL</option>');
     htmlTemplate.push('<option value="cc200">CC200</option>');
     htmlTemplate.push('<option value="cc400">CC400</option>');
+    htmlTemplate.push('<option value="shen268">Shen268</option>');
     htmlTemplate.push('<option value="fs86avg">FreeSurferAverage86 (DKT+aseg)</option>');
     htmlTemplate.push('<option value="fs86subj">FreeSurfer86 (subj-specific DKT+aseg)</option>');
-    htmlTemplate.push('<option value="fs111subj">FreeSurfer111 (subj-specific DKT+aseg+SUIT cereb)</option>');
+    htmlTemplate.push('<option value="fs111subj">FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)</option>');
+    //htmlTemplate.push('<option value="yeo7">Yeo2011 7-networks</option>');
+    //htmlTemplate.push('<option value="yeo17">Yeo2011 17-networks</option>');
     //htmlTemplate.push('<option value="aparc">aparc+aseg</option>');
-    //htmlTemplate.push('<option value="aparc2009">aparc.a2009s+aseg</option>');
+    //htmlTemplate.push('<option value="aparc2009">aparc.a2009s+aseg</option>');*/
     htmlTemplate.push('<option value="custom">[Upload atlas]</option>');
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
@@ -240,6 +260,9 @@ function addOutput(parc_or_res, select_id, init1mm){
             '<input id="'+newfileinput_id+'" type="file" accept=".gz,.nii" class="fileinfo">',
             '<label id="'+newfilelabel_id+'" class="fileinfo"></label>');
         } else {
+            if(atlasinfo[selvalue] && atlasinfo[selvalue]['thumbnail'])
+                htmlTemplate.push('<div style="float:right; padding-right: 20pt"><img src="'+atlasinfo[selvalue]['thumbnail']+'"></div>');
+            
             htmlTemplate.push('Parcellation name: '+seltext,
             '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
         }
@@ -256,7 +279,7 @@ function addOutput(parc_or_res, select_id, init1mm){
     //    '<input type="checkbox" id="'+newid+'_output_denom" name="'+newid+'_output_denom" value="1" checked>',
     //    '<label for="'+newid+'_output_denom">Output denominator for each reference subject (large file size. Useful for re-parcellation)</label>');
     
-
+    
     newdiv.innerHTML=htmlTemplate.join("\n");
     parentdiv.appendChild(newdiv);
     

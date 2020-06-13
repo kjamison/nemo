@@ -84,6 +84,13 @@ def flatParcellationToTransform(Pflat, isubj=None, out_type="csr"):
     pmaskidx=np.where(Pdata!=0)[0]
     uroi, uidx=np.unique(Pdata[Pdata!=0],return_inverse=True)
     numroi=len(uroi)
+    
+    #this would create an entry at the actual ROI values, rather than just going through the sequential PRESENT value
+    #eg: for cc400 it would be a 7M x 400 array instead of 7M x 392
+    #   but for an arbitrary/custom input, where they left freesurfer values, this could make it in the thousands!
+    #uidx=(uroi[uidx]-1).astype(np.int64)
+    #numroi=max(uroi).astype(np.int64)
+    
     if out_type == "csr":
         return sparse.csr_matrix((np.ones(pmaskidx.size),(pmaskidx,uidx)),shape=(numvoxels,numroi),dtype=np.float32)
     elif out_type == "csc":
@@ -175,7 +182,6 @@ for k,v in vars(args).items():
     print("--%s" % (k), v)
 print("")
 
-exit(0)
 do_force_redownload = False
 do_download_nemofiles = False
 
@@ -199,20 +205,20 @@ if s3nemoroot:
     s3nemoroot=s3nemoroot.replace("s3://","").replace("S3://","")
     s3nemoroot_bucket=s3nemoroot.split("/")[0]
     s3nemoroot_prefix="/".join(s3nemoroot.split("/")[1:])
-
+    
     # make a per process s3_client
     s3_client = None
     def s3initialize():
         global s3_client
         s3_client = boto3.client('s3')
-
+        
     def s3download(job):
         bucket, key, filename = job
         s3_client.download_file(bucket,key,filename)
 
 if do_download_nemofiles:
     starttime_download_nemofiles=time.time()
-
+    
     nemofiles_to_download=[asumfile]
     if do_weighted:
          #nemofiles_to_download=['nemo_Asum_weighted_endpoints.npz','nemo_siftweights.npy']
@@ -222,7 +228,7 @@ if do_download_nemofiles:
         nemofiles_to_download.extend([tracklengthfile])
     #nemofiles_to_download.extend(['nemo_endpoints.npy','nemo_chunklist.npz',refimgfile])
     nemofiles_to_download.extend([endpointfile,chunklistfile,refimgfile])
-
+    
     #check if we've already downloaded them (might be a multi-file run)
     if not do_force_redownload:
         nemofiles_to_download=[f for f in nemofiles_to_download if not os.path.exists(f)]
@@ -299,7 +305,6 @@ origvoxmm=1
 origres_name="res%dmm" % (origvoxmm)
 
 if new_resolution:
-
     volshape=refimg.shape
     for r in new_resolution:
         if r.find("=") >= 0:
@@ -636,17 +641,13 @@ def map_to_endpoints_conn(isubj):
     endpt1=endpt.min(axis=0)
     endpt2=endpt.max(axis=0)
     #any endpoints in "voxel 0" are from spurious endpoints for "lost" streamlines
-    #but not this way! because then endpt and data and denoms don't line up!
     endpt_iszero=(endpt1==0) | (endpt2==0)
-    #endpt1=endpt1[~endpt_iszero]
-    #endpt2=endpt2[~endpt_iszero]
     #chacoconn=sparse.csr_matrix(((T_allsubj[isubj,:]>0).toarray().flatten(),(endpt1,endpt2)),shape=(numvoxels,numvoxels),dtype=np.float32)
     
     #note: need to cast to non-bool here otherwise the summing in sparse matrix build doesn't work!
     T=T_allsubj[isubj,:].astype(np.float32)
     if trackweights is not None:
         T.data*=trackweights[isubj,T.indices]
-    #T[endpt_iszero]=0
     T.data[endpt_iszero[T.indices]]=0
     #T.eliminate_zeros()
     chacoconn=sparse.csr_matrix((T.data,(endpt1[T.indices],endpt2[T.indices])),shape=(numvoxels,numvoxels),dtype=np.float32)

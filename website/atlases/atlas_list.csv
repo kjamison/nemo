@@ -1,7 +1,10 @@
 aal,AAL116_MNI152_1mm_182x218x182.nii.gz,aal_roi_atlas116.csv
 cc200,cc200_new1mm.nii.gz,cc200_roi_labels.csv
 cc400,cc400_new1mm.nii.gz,cc400_roi_labels.csv
-fs86avg,fs86_dil3_allsubj_mode.nii.gz,fs86_FreeSurferLUT.txt
-fs86subj,fs86_dil3_allsubj.npz,fs86_FreeSurferLUT.txt
-fs111avg,fs111cereb_dil3_allsubj_mode.nii.gz,fs111cereb_FreeSurferLUT.txt
-fs111subj,fs111cereb_dil3_allsubj.npz,fs111cereb_FreeSurferLUT.txt
+shen268,shen268_MNI1mm_dil1.nii.gz,shen_268_parcellation_networklabels.csv
+fs86avg,fs86_dil1_allsubj_mode.nii.gz,fs86_FreeSurferLUT.txt
+fs86subj,fs86_dil1_allsubj.npz,fs86_FreeSurferLUT.txt
+fs111avg,fs111cereb_dil1_allsubj_mode.nii.gz,fs111cereb_FreeSurferLUT.txt
+fs111subj,fs111cereb_dil1_allsubj.npz,fs111cereb_FreeSurferLUT.txt
+yeo7,Yeo2011_7Networks_MNI152_182x218x182_LiberalMask.nii.gz,Yeo2011_7Networks_ColorLUT.txt
+yeo17,Yeo2011_17Networks_MNI152_182x218x182_LiberalMask.nii.gz,Yeo2011_17Networks_ColorLUT.txt
