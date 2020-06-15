@@ -24,6 +24,7 @@ OUTPUT_EXPIRATION_SECONDS = 604800
 
 
 #note: these are set in the "Environment Variables" section of the AWS Lambda configuration console for this script
+#IAM user info needed for URL signing
 IAM_USER_KEY=os.environ['IAM_USER_KEY']
 IAM_USER_SECRET=os.environ['IAM_USER_SECRET']
 COCO_PASSWORD=os.environ['COCO_PASSWORD']
@@ -59,13 +60,13 @@ def launch_instance(EC2, config, user_data):
     return (instance_id, new_instance_resp)
 
 
-def dict2json(mydict):
+def dict2jsonkeyval(mydict):
     jsonresult=[]
     for k,v in mydict.items():
         jsonresult+=[{'Key':k, 'Value':v}]
     return jsonresult
 
-def json2dict(myjson):
+def jsonkeyval2dict(myjson):
     dictresult={}
     for i in myjson:
         dictresult[i['Key']]=i['Value']
@@ -199,55 +200,58 @@ def sendCompletionEmail(useremail, duration_string, filesize_string, downloadurl
     return BODY_HTML
         
 def lambda_handler(raw_event, context):
-    print(f"Received raw event: {raw_event}")
+    #print(f"Received raw event: {raw_event}")
     # event = raw_event['Records']
 
     for record in raw_event['Records']:
         bucket = record['s3']['bucket']['name']
-        print(f"Triggering S3 Bucket: {bucket}")
         key = unquote_plus(record['s3']['object']['key'])
-        print(f"Triggering key in S3: {key}")
+        print(f"Triggering S3 object: {bucket}/{key}")
         
         S3 = boto3.client('s3')
         
         #get the email address and timestamp tags we added to the file upload
         s3filetags=S3.get_object_tagging(Bucket=bucket, Key=key)
-        s3tagdict=json2dict(s3filetags['TagSet'])
+        s3tagdict=jsonkeyval2dict(s3filetags['TagSet'])
         s3tagdict['md5']=S3.head_object(Bucket=bucket, Key=key)['ETag'].strip('"')
-        s3tagdict['s3path']=bucket+"/"+key
-        s3tagdict['s3nemoroot']=NEMO_DATA_STORAGE_LOCATION
-        s3tagdict['s3configbucket']=CONFIG_BUCKET_NAME
-        
+            
         if not 'email' in s3tagdict:
             #this is not a valid input or final result file (might be an image we uploaded to the bucket)
             continue
-        
-        #check if password was entered and matches
-        if 'coco_password' in s3tagdict: 
-            if s3tagdict['coco_password'] == COCO_PASSWORD:
-                if 'outputlocation' in s3tagdict:
-                    s3tagdict['s3direct_outputlocation']=s3tagdict['outputlocation']
-                S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'success', Tagging='password_status=success')
-            else:
-                print(f"Bad password!")
-                submittime=int(s3tagdict['unixtime'])
-                submittime_string=time.strftime('%Y-%m-%d %H:%M:%S %Z',time.gmtime(int(submittime/1000)))
-                #S3.delete_object(Bucket=bucket, Key=key)
-                S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'error', Tagging='password_status=error')
-                return
-            del s3tagdict['coco_password']
-            
-        if 'outputlocation' in s3tagdict:
-            del s3tagdict['outputlocation']
-            
-        # get config from config file stored in S3
-        result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=CONFIG_FILE_KEY)
-        ec2_config = json.loads(result["Body"].read().decode())
-        
+
+        ############################################################################
+        # input handler
+        #
         # launch new EC2 instance if necessary
         if bucket == UPLOAD_BUCKET_NAME and key.startswith(f"{BUCKET_INPUT_DIR}/"):
+            s3tagdict['s3path']=bucket+"/"+key
+            s3tagdict['s3nemoroot']=NEMO_DATA_STORAGE_LOCATION
+            s3tagdict['s3configbucket']=CONFIG_BUCKET_NAME
+        
+            #check if password was entered and matches
+            if 'coco_password' in s3tagdict: 
+                if s3tagdict['coco_password'] == COCO_PASSWORD:
+                    if 'outputlocation' in s3tagdict:
+                        s3tagdict['s3direct_outputlocation']=s3tagdict['outputlocation']
+                    S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'success', Tagging='password_status=success')
+                else:
+                    print(f"Bad password!")
+                    submittime=int(s3tagdict['unixtime'])
+                    submittime_string=time.strftime('%Y-%m-%d %H:%M:%S %Z',time.gmtime(int(submittime/1000)))
+                    #S3.delete_object(Bucket=bucket, Key=key)
+                    S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'error', Tagging='password_status=error')
+                    return
+                del s3tagdict['coco_password']
+            
+            if 'outputlocation' in s3tagdict:
+                del s3tagdict['outputlocation']
+            
+            # get config from config file stored in S3
+            result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=CONFIG_FILE_KEY)
+            ec2_config = json.loads(result["Body"].read().decode())
+        
             #add s3 file tags to the instance tags
-            ec2_config['set_new_instance_tags']+=dict2json(s3tagdict)
+            ec2_config['set_new_instance_tags']+=dict2jsonkeyval(s3tagdict)
             print(f"Config from S3: {ec2_config}")
 
         
@@ -285,7 +289,7 @@ def lambda_handler(raw_event, context):
             print("[INFO] Could not find even a single running instance matching the desired tag, launching a new one")
 
             # retrieve EC2 user-data for launch
-            if 'debug' in s3tagdict: 
+            if 'debug' in s3tagdict and s3tagdict['debug'].lower()=="true":
                 #read debug-mode user-data file
                 result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=USER_DATA_FILE_KEY_DEBUG)
             else:
@@ -302,7 +306,10 @@ def lambda_handler(raw_event, context):
                 "new-instanceId": result[0]
             }
 
-        # terminate all tagged EC2 instances
+        ############################################################################
+        # output handler
+        #
+        # send result email
         if bucket == UPLOAD_BUCKET_NAME and key.startswith(f"{BUCKET_OUTPUT_DIR}/"):
             s3region=record['awsRegion']
             
@@ -315,7 +322,8 @@ def lambda_handler(raw_event, context):
             #outputkey_prefix=re.sub('\.zip$','',key)
             outputkey_prefix="/".join(key.split("/")[:-1])+"/"
             outputfiles_response=S3.list_objects(Bucket=bucket,Prefix=outputkey_prefix)
-            outputimg_key=[r['Key'] for r in outputfiles_response['Contents'] if r['Key'].endswith(".png")]
+            outputfiles_list=[r['Key'] for r in outputfiles_response['Contents']]
+            outputimg_key=[f for f in outputfiles_list if f.endswith(".png")]
             outputimg_name=[s.split("/")[-1] for s in outputimg_key]
             
             ##############################
@@ -349,7 +357,18 @@ def lambda_handler(raw_event, context):
                 
             #sort by new index
             outputimg_list = [outputimg_list[i] for i in sorted(range(len(outputimg_list)), key=lambda k: outputimg_list[k]['index'])]
-            
+
+            ##############################
+            outputfile_uploadjson_key=[f for f in outputfiles_list if f.endswith("_upload_info.json")]
+            if len(outputfile_uploadjson_key) > 0:
+                uploadjson_key=outputfile_uploadjson_key[0]
+                uploadjson_result = S3.get_object(Bucket=bucket, Key=uploadjson_key)
+                uploadinfo = json.loads(uploadjson_result["Body"].read().decode())
+                print(f"Upload info {uploadjson_key}:\n{uploadinfo}")
+            else:
+                [print(s) for s in outputfiles_list]
+                uploadinfo=s3tagdict
+                            
             ##############################
             ziplist_string=""
             outputfile_ziplist_key=[r['Key'] for r in outputfiles_response['Contents'] if r['Key'].endswith("_ziplist.txt")]
@@ -362,15 +381,19 @@ def lambda_handler(raw_event, context):
             #generate a link that will expire in 1 week (maximum)
             downloadurl=S3_as_user.generate_presigned_url(ClientMethod='get_object', Params={'Bucket':bucket,'Key':key}, ExpiresIn=OUTPUT_EXPIRATION_SECONDS)
             downloadurl_unsigned="https://%s.s3.amazonaws.com/%s" % (bucket,key)
-            duration_string=durationToString(float(s3tagdict['duration']))
-            if 'outputsize' in s3tagdict:
-                downloadsize_string=s3tagdict['outputsize']
+            duration_string=durationToString(float(uploadinfo['duration']))
+            if 'outputsize' in uploadinfo:
+                downloadsize_string=uploadinfo['outputsize']
             else:
                 downloadsize_string=fileSizeString(int(record['s3']['object']['size']))
+                
+            if 'outputsize_unzipped' in uploadinfo and uploadinfo['outputsize_unzipped']:
+                downloadsize_string+=" ("+uploadinfo['outputsize_unzipped']+" unzipped)"
+            
             downloadfilename=key.split("/")[-1]
             
-            if 'resultlocation' in s3tagdict:
-                result_location=s3tagdict['resultlocation']
+            if 'resultlocation' in uploadinfo:
+                result_location=uploadinfo['resultlocation']
             else:
                 result_location=None
              
@@ -379,13 +402,13 @@ def lambda_handler(raw_event, context):
             #TODO: may need to exclude some subjects still!
             
             #timestamp is unix epoch time with milliseconds, so make sure to divide those off
-            submittime=int(s3tagdict['submittime'])
+            submittime=int(uploadinfo['submittime'])
             submittime_string=time.strftime('%Y-%m-%d %H:%M:%S %Z',time.gmtime(int(submittime/1000)))
             
-            print(f"Output email: {s3tagdict['email']}")
-            print(f"Output duration: {s3tagdict['duration']}")
-            print(f"Output status: {s3tagdict['status']}")
-            print(f"Output origfilename: {s3tagdict['origfilename']}")
+            print(f"Output email: {uploadinfo['email']}")
+            print(f"Output duration: {uploadinfo['duration']}")
+            print(f"Output status: {uploadinfo['status']}")
+            print(f"Output origfilename: {uploadinfo['origfilename']}")
             print(f"Output submittime: {submittime_string}")
             print(f"Output filename: {downloadfilename}")
             print(f"Output duration string: {duration_string}")
@@ -397,7 +420,7 @@ def lambda_handler(raw_event, context):
             [print(f"Output image: %s" % (s)) for s in outputimg_name]
 
             
-            outputhtml=sendCompletionEmail(s3tagdict['email'], duration_string, downloadsize_string, downloadurl, downloadfilename, s3tagdict['origfilename'], s3region, s3tagdict['status'], outputimg_list, ziplist_string, submittime_string, result_location)
+            outputhtml=sendCompletionEmail(uploadinfo['email'], duration_string, downloadsize_string, downloadurl, downloadfilename, uploadinfo['origfilename'], s3region, uploadinfo['status'], outputimg_list, ziplist_string, submittime_string, result_location)
             
             return {}
             

@@ -22,7 +22,7 @@ NEMODIR=${HOME}/nemo2
 mkdir -p ${NEMODIR}
 ###################################
 
-tagfile=${HOME}/nemo_tags.txt
+tagfile=${HOME}/nemo_tags.json
 
 instanceid=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id)
 region=$(curl --silent --fail http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
@@ -36,6 +36,7 @@ rm -f $HOME/tmp_config.json
 
 #(note: there might be duplicates between instance tags and config, so take head -n1)
 nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' ${tagfile} | head -n1)
+nemo_version_date=$(jq --raw-output 'select(.Key=="nemo_version_date") | .Value' ${tagfile} | head -n1)
 s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' ${tagfile} | head -n1)
 s3configbucket=$(jq --raw-output 'select(.Key=="s3configbucket") | .Value' ${tagfile} | head -n1)
 origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | head -n1)
@@ -206,13 +207,12 @@ s3direct_resultpath=s3://${s3direct_outputlocation}/${origfilename_noext}_nemo_o
 mkdir -p $(dirname $outputbase)
 
 #print a nicer version of the tags to the output directory
-output_config_file=${outputdir}/nemo_config.json
+output_config_file=${outputbase}_${origtimestamp}_config.json
 output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
-echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq --raw-output '.' > ${output_config_file}
-#cp -f ${HOME}/nemo_tags.txt ${outputdir}/
+echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
 aws s3 cp ${output_config_file} ${output_config_s3file}
 
-echo "NeMo version ${nemo_version}" > ${logfile}
+echo "NeMo version ${nemo_version}_${nemo_version_date}" > ${logfile}
 date --utc >> ${logfile}
 cd ${NEMODIR}
 
@@ -320,7 +320,10 @@ fi
 aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${input_lesion_image} --tagging ${input_status_tagstring}
 
 #delete the input file from the s3 bucket
-aws s3 rm s3://${s3path}
+if [ "${do_debug}" != "true" ]; then
+    aws s3 rm s3://${s3path}
+fi
+
 
 #############
 finalstatus="success"
@@ -415,21 +418,26 @@ done
 #save subject list to file in output directory:
 python -c 'import numpy as np; chunklist=np.load("nemo_chunklist.npz"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
 
+uploadjson=${outputbase}_upload_info.json
+echo "{}" > ${uploadjson}
+
 ##########################################################################################
 ##########################################################################################
 #copy output directly to S3 or zip and upload to website
 if [ "${do_s3direct}"  = "1" ]; then
-    endtime=$(date +%s)
-    duration=$(echo "$endtime - $starttime" | bc -l)
-
     cd ${outputdir}
     ziplistfile=${outputbase}_ziplist.txt
     du -h * > ${ziplistfile}
+    grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
     
     outputsize=$(du -hs ./ | awk '{print $1}')
+    outputsize_unzipped=""
+
+    endtime=$(date +%s)
+    duration=$(echo "$endtime - $starttime" | bc -l)
 
     #copy any remaining files to s3 bucket
-    aws s3 sync ./ ${s3direct_resultpath}
+    aws s3 sync ./ ${s3direct_resultpath} --exclude "*_ziplist.txt" --exclude "*_upload_info.json"
     
     #now copy files for email
     #(note: for the s3direct version, the filename isn't downloadable so it doesn't need to be .png or .zip or anything)
@@ -438,51 +446,61 @@ if [ "${do_s3direct}"  = "1" ]; then
     outputkey_base=outputs/${origtimestamp}_${s3filename_noext}
     outputkey=${outputkey_base}/${outputfilename}
     
-    if [ "${success_count}" -gt "1" ]; then
-        aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile}
-        outputfilename=$(ls *_listmean.png | head -n1)
-    else
-        aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile}
-        outputfilename=$(ls *.png | head -n1)
-    fi
-    #outputkey=${outputkey_base}/${outputfilename}
+    #add the s3 output location for internal direct s3 copy mode
+    jq --arg resultlocation "${s3direct_resultpath}" '.+{resultlocation:$resultlocation}' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
     
-    output_tagstring='email='${email}'&duration='${duration}'&status='${finalstatus}'&origfilename='${origfilename}'&inputfilecount='${inputfile_count}'&submittime='${origtimestamp_unix}
-    output_tagstring+='&successcount='${success_count}'&inputfilecount_orig='${inputfile_count_orig}'&outputsize='${outputsize}'&resultlocation='${s3direct_resultpath}
-    aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
 else
     cd ${outputdir}
     outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}.zip
     rm -f ${outputfilename}
     ziplistfile=${outputbase}_ziplist.txt
     du -h * > ${ziplistfile}
-    zip ${outputfilename} * -x "*_ziplist.txt"
+    grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
+    
+    outputsize_unzipped=$(du -hs ./ | awk '{print $1}')
+    zip ${outputfilename} * -x "*_ziplist.txt" -x "*_upload_info.json"
 
+    endtime=$(date +%s)
+    duration=$(echo "$endtime - $starttime" | bc -l)
+    
     outputsize=$(du -hs ${outputfilename} | awk '{print $1}')
     
     outputkey_base=outputs/${origtimestamp}_${s3filename_noext}
     outputkey=${outputkey_base}/${outputfilename}
     #aws s3 cp ${outputdir} s3://${outputbucket}/${outputkey}
-
-    endtime=$(date +%s)
-    duration=$(echo "$endtime - $starttime" | bc -l)
-
-    if [ "${success_count}" -gt "1" ]; then
-        aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile}
-    else
-        aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile}
-    fi
-
-    output_tagstring='email='${email}'&duration='${duration}'&status='${finalstatus}'&origfilename='${origfilename}'&inputfilecount='${inputfile_count}'&submittime='${origtimestamp_unix}
-    output_tagstring+='&successcount='${success_count}'&inputfilecount_orig='${inputfile_count_orig}'&outputsize='${outputsize}
-    aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
+    
 fi
 
+#build a json file with info we will need to send the email
+jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstatus}" --arg origfilename "${origfilename}" \
+    --arg inputfilecount "${inputfile_count}" --arg submittime "${origtimestamp_unix}" --arg successcount "${success_count}" \
+    --arg inputfilecount_orig "${inputfile_count_orig}" --arg outputsize "${outputsize}" --arg outputsize_unzipped "${outputsize_unzipped}" \
+    '.+{email:$email, duration:$duration, status:$status, origfilename:$origfilename, inputfilecount:$inputfilecount,
+    submittime:$submittime, successcount:$successcount, inputfilecount_orig:$inputfilecount_orig, outputsize:$outputsize,
+    outputsize_unzipped:$outputsize_unzipped
+    }' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
+
+
+if [ "${success_count}" -gt "1" ]; then
+    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile} --include ${uploadjson}
+    outputfilename=$(ls *_listmean.png | head -n1)
+else
+    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile} --include ${uploadjson}
+    outputfilename=$(ls *.png | head -n1)
+fi
+
+output_tagstring="email=${email}"
+aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
+
+
+#######################################
 #add final status, duration, and output path to updated log on s3
 #(note: put quotes around each jq value in case they have spaces)
 finaljson=${output_config_file}_final.json
 output_expiration=$(aws s3api head-object --bucket ${outputbucket} --key ${outputkey} | jq --raw-output ".Expiration // empty" | sed -E 's#expiry-date=\"([^\"]+)\".+$#\1#')
-jq --raw-output '.inputfilecount="'"${inputfile_count}"'" | .successcount="'"${success_count}"'" | .duration="'"${duration}"'" | .finalstatus="'"${finalstatus}"'" | .outputsize="'"${outputsize}"'" | .s3resultpath="'"${outputbucket}/${outputkey}"'" | .s3expiration="'"${output_expiration}"'"' ${output_config_file} > ${finaljson}
+
+jq -s --arg s3result_expiration "${output_expiration}" '.[0]+.[1]+{s3result_expiration:$s3result_expiration}' ${output_config_file} ${uploadjson} > ${finaljson}
+
 aws s3 cp ${finaljson} ${output_config_s3file}
 aws s3 cp ${logfile} s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_log.txt
 
