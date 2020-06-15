@@ -24,10 +24,6 @@
         {
             "Key": "Name",
             "Value": "NeMo-runner"
-        },
-        {
-            "Key": "nemo_version",
-            "Value": "2.0a3"
         }
     ]
 }

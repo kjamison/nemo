@@ -21,15 +21,29 @@ body {
     padding: 8pt;
     margin: 4pt;
 }
+.versiondiv {
+    font-size: 10pt; 
+    text-align: right;
+    color: lightgray;
+    padding-top: .5em;
+}
 .button {
     font-size: 12pt;
 }
 .statustext_good {
-    color: green;
+    color: darkgreen;
+    background-color: lightgreen;
+    margin-top: 1em;
+    padding:.5em;
 }
 .statustext_bad {
-    color: red;
+    color: darkred;
+    background-color: lightpink;
+    margin-top: 1em;
+    padding:.5em;
 }
 .statustext_neutral {
     color: gray;
+    margin-top: 1em;
+    padding:.5em;
 }

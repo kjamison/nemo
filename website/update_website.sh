@@ -18,6 +18,8 @@ aws s3 cp ${SCRIPTDIR}/uploader.js s3://${WEBSITE_S3}/
 aws s3 cp ${SCRIPTDIR}/styles.css s3://${WEBSITE_S3}/
 aws s3 sync ${SCRIPTDIR}/images s3://${WEBSITE_S3}/images/
 
+echo "Version info:"
+jq --raw-output '.' ${SCRIPTDIR}/config/nemo-version.json
+
 echo
 echo "Reminder: Need to manually copy/paste contents of s3-lambda.py into the AWS Lambda config!"
-    

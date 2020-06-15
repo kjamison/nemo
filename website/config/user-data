@@ -2,6 +2,6 @@
 
 aws s3 cp s3://kuceyeski-wcm-web/config/nemo_startup.sh /home/ubuntu/
 aws s3 sync s3://kuceyeski-wcm-web/nemo_scripts /home/ubuntu/nemo2
-chmod -R a+wrx /home/ubuntu/nemo2
+chmod -R a+wrx /home/ubuntu/nemo2 /home/ubuntu/nemo_startup.sh
 su ubuntu /home/ubuntu/nemo_startup.sh > /home/ubuntu/nemo_log.txt 2>&1 
 shutdown -h now

@@ -8,6 +8,7 @@ var passwordTimerInterval = 1000;
 var uploadTimerInterval = 10000;
 var uploadStatusSuffix = "_status.png";
 var uploadTimerCount = 0;
+var nemo_version_info = null;
 
 var reslist=[];
 var parclist=[];
@@ -59,7 +60,14 @@ function filesizestring(numbytes) {
     }
 }
 
-function jsonToDict(jsonlist){
+function dict2jsonkeyval(mydict){
+    retlist=[];
+    for(var k in mydict)
+        retlist=retlist.concat({Key:k, Value:mydict[k]});
+    return retlist;
+}
+
+function jsonkeyval2dict(jsonlist){
     retval={};
     for(i=0;i<jsonlist.length; i++)
         retval[jsonlist[i].Key]=jsonlist[i].Value;
@@ -92,22 +100,22 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
                 return;
             }
             //console.log("Tag is here!");
-            tags=jsonToDict(tagdata.TagSet);
+            tags=jsonkeyval2dict(tagdata.TagSet);
             //console.log("Count: " +  uploadTimerCount.toString());
             //console.log(tags);
+
+            var statusimgdiv = document.getElementById("uploadstatusimage");
+            
             if (tags["input_checks"]=="success"){
                 s3.getObject(s3params,function(err,file){
-                    statusdiv.innerHTML+="</br><h4>Input lesion mask</h4></br><img src='data:image/png;base64," + base64_encode(file.Body)+"'>";
+                    statusimgdiv.innerHTML="</br><h4>Input lesion mask</h4></br><img src='data:image/png;base64," + base64_encode(file.Body)+"'>";
                 });
             } else if(tags["input_checks"]=="error"){
-                statusdiv.className="statustext_bad";
-                statusdiv.innerHTML="<br/>Input file error!";
+                errorMessage("Input file error!");
             } else if(tags["password_status"]=="error"){
-                statusdiv.className="statustext_bad";
-                statusdiv.innerHTML="<br/>Incorrect password!";
+                errorMessage("Incorrect password!");
             } else if(tags["password_status"]=="success"){
-                statusdiv.className="statustext_good";
-                statusdiv.innerHTML=password_success_message;
+                successMessage(password_success_message);
                 if(uploadTimer != null)
                     clearInterval(uploadTimer);
                 uploadTimerCount=0;
@@ -135,7 +143,7 @@ function showUploader(run_internal_script) {
     if(document.URL.startsWith("file:///"))
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
-
+    
     var htmlTemplate = [
         '<div>',
         'Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
@@ -167,7 +175,8 @@ function showUploader(run_internal_script) {
         '<br/><br/>',
         extra_html,
         '<button id="upload" onclick="submitMask()" class="button">Submit File</button>',
-        '<div id="uploadstatus"></div>'
+        '<div id="uploadstatus"></div><div id="uploadstatusimage"></div>',
+        '<div id="version" class="versiondiv"></div>'
     ];
     document.getElementById("app").innerHTML = htmlTemplate.join("\n");
     document.getElementById('fileupload').onchange = function(){
@@ -175,8 +184,48 @@ function showUploader(run_internal_script) {
         document.getElementById('filesize').innerHTML="(" + filesizestring(filesize) + ")";
     }
     addOutput("res",null,true);
-    return;
+    
+    //get version info
+    if(document.URL.startsWith("file:///")){
+        document.getElementById('version').innerHTML="NeMo vLOCAL";
+    } else {
+        jsonurl='config/nemo-version.json';
+        let request = new XMLHttpRequest();
+
+        request.open('GET', jsonurl);
+        request.responseType = 'json'; // now we're getting a string!
+        request.send();
+
+        request.onload = function() {
+            nemo_version_info=request.response;
+            document.getElementById('version').innerHTML="NeMo v"+nemo_version_info['nemo_version']+" - "+nemo_version_info['nemo_version_date'];
+        }
+    }
 }
+
+function updateStatusMessage(message,message_class, keep_buttons_disabled){
+    let statusdiv = document.getElementById("uploadstatus");
+    let statusimgdiv = document.getElementById("uploadstatusimage");
+    
+    statusdiv.className=message_class;
+    statusdiv.innerHTML=message;
+    
+    if(!keep_buttons_disabled)
+        document.getElementById("upload").disabled=false;
+}
+
+function successMessage(message, keep_buttons_disabled){
+    updateStatusMessage(message,"statustext_good",keep_buttons_disabled);
+}
+function errorMessage(message,keep_buttons_disabled){
+    updateStatusMessage(message,"statustext_bad",keep_buttons_disabled);
+}
+
+function neutralMessage(message,keep_buttons_disabled){
+    updateStatusMessage(message,"statustext_neutral",keep_buttons_disabled);
+}
+
+
 
 function getResolutionSelectHtml(id){
     htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
@@ -202,6 +251,8 @@ function getParcSelectHtml(id){
 }
 
 function addOutput(parc_or_res, select_id, init1mm){
+    var allrefchecked=""
+    var pairwisechecked=""
     if(init1mm){
         var selvalue="1";
         var seltext="1 mm";
@@ -212,6 +263,8 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         }
         var seltext=myselect.options[myselect.options.selectedIndex].text;
+        allrefchecked="checked"
+        pairwisechecked="checked"
     }
     
     if (parc_or_res=="parc" && selvalue != "custom" ){
@@ -259,9 +312,9 @@ function addOutput(parc_or_res, select_id, init1mm){
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
-    htmlTemplate.push('<br/><br/><input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" checked>',
+    htmlTemplate.push('<br/><br/><input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
         '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label><br/>',
-        '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" checked>',
+        '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" '+allrefchecked+'>',
         '<label for="'+newid+'_output_allref">Output ChaCo for each reference subject (large file size)</label><br/>');
     
     //    '<input type="checkbox" id="'+newid+'_output_denom" name="'+newid+'_output_denom" value="1" checked>',
@@ -305,23 +358,24 @@ function getNextAvailableId(idprefix,startindex){
 
 function submitMask() {
     if(uploadTimer != null){
-    clearInterval(uploadTimer); 
-    uploadTimer=null;
+        clearInterval(uploadTimer); 
+        uploadTimer=null;
     }
 
     var files = document.getElementById("fileupload").files;
     var email = document.getElementById("email").value;
-    //var output_allref = document.getElementById("output_allref").checked;
     var cumulative = document.getElementById("cumulative").checked;
     var smoothing = document.getElementById("smoothing").checked;
     var siftweights = document.getElementById("siftweights").checked;
     var statusdiv = document.getElementById("uploadstatus");
+    var statusimgdiv = document.getElementById("uploadstatusimage");
     var outputlocation = document.getElementById("outputlocation");
     var cocopassword = document.getElementById("coco_password");
     var debug_input = document.getElementById("debug");
     
-    statusdiv.className="statustext_neutral"
-    statusdiv.innerHTML="..."
+    neutralMessage("...",true);
+    document.getElementById("upload").disabled=true;
+    statusimgdiv.innerHTML="";
     
     var uploadFolderKey = encodeURIComponent(uploadFolder) + "/";
     var newTimestamp=timestamp() 
@@ -348,8 +402,7 @@ function submitMask() {
         var this_newkey=""
         if (this_filenode != null){
             if(!this_filenode.files.length){
-                statusdiv.className="statustext_bad";
-                statusdiv.innerHTML="<br/>Please choose a parcellation file to upload first!";
+                errorMessage("Please choose a parcellation file to upload first!")
                 return;
             }
             var this_file=this_filenode.files[0];
@@ -360,8 +413,10 @@ function submitMask() {
                 this_fileext=".nii.gz";
             else if(this_lowername.endsWith(".nii"))
                 this_fileext=".nii";
-            else
-                return alert("Unknown file extension for "+this_filename+". Must be .nii.gz, .nii");
+            else {
+                errorMessage("Unknown file extension for "+this_filename+". Must be .nii.gz, .nii");
+                return;
+            }
             
 
             var newKey=uploadFolderKey + newTimestamp + "/" + this_name + this_fileext;
@@ -382,10 +437,9 @@ function submitMask() {
                 console.log("Successfully uploaded atlas file: "+this_filename)
             },
             function(err) {
-                statusdiv.className="statustext_bad";
-                statusdiv.innerHTML="<br/>Failed!";
+                errorMessage("There was an error uploading your atlas file: "+err.message)
                 console.log(err);
-                return alert("There was an error uploading your atlas file: ", err.message);
+                return;
             });
         }
         //remove the "add"
@@ -412,16 +466,12 @@ function submitMask() {
     //console.log(outputs_taglist);
 
     if (!files.length) {
-        statusdiv.className="statustext_bad";
-        statusdiv.innerHTML="<br/>Please choose a file to upload first!";
+        errorMessage("Please choose a file to upload first!");
         return;
-        //return alert("Please choose a file to upload first.");
     }
     if (!email.length) {
-        statusdiv.className="statustext_bad";
-        statusdiv.innerHTML="<br/>Please enter an email!";
+        errorMessage("Please enter an email!")
         return;
-        //return alert("Please enter an email.");
     }
     var file = files[0];
     var fileName = file.name;
@@ -440,9 +490,10 @@ function submitMask() {
     } else if (lowername.endsWith(".tar")) {
         fileext=".tar"
     } else {
-        return alert("Unknown file extension for "+fileName+". Must be .nii.gz, .nii, .zip, .tar, .tar.gz");
+        errorMessage("Unknown file extension for "+fileName+". Must be .nii.gz, .nii, .zip, .tar, .tar.gz")
+        return;
     }
-
+    
     var newFileName=newTimestamp + "/" + uuidv4() + fileext;
     var newKey=uploadFolderKey + newFileName;
 
@@ -460,7 +511,9 @@ function submitMask() {
     if (debug_input) taglist.push({Key: 'debug', Value: debug_input.checked});
     
     var config_taglist=[{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative}];
-    config_taglist=taglist.concat(config_taglist);
+    config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
+    config_taglist=config_taglist.concat(config_taglist);
+    
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);
     //////////////////////////////////////////////////////////
@@ -484,8 +537,9 @@ function submitMask() {
         console.log("Successfully uploaded config");
     },
     function(err) {
+        errorMessage("There was an error uploading your config: "+err.message);
         console.log(err);
-        return alert("There was an error uploading your config: ", err.message);
+        return;
     });
     
     //return;
@@ -508,25 +562,21 @@ function submitMask() {
     promise.then(
     function(data) {
         if(cocopassword){
-            statusdiv.className="statustext_neutral";
-            statusdiv.innerHTML="<br/>Validating password...";
+            neutralMessage("Validating password...", true);
             timer_interval=passwordTimerInterval;
         } else {
-            statusdiv.className="statustext_good";
-            statusdiv.innerHTML="<br/>Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)";
+            successMessage("Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)")
             timer_interval=uploadTimerInterval;
         }
-        //alert("Successfully uploaded lesion mask.");
         if(uploadTimer == null){
             uploadTimerCount=0;
-            password_success_message="<br/>Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)";
+            password_success_message="Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)";
             uploadTimer = setInterval(function() {checkBucketStatus(uploadBucketName, newKey, statusdiv, password_success_message);}, timer_interval);
         } 
     },
     function(err) {
-        statusdiv.className="statustext_bad";
-        statusdiv.innerHTML="<br/>Failed!";
+        errorMessage("There was an error uploading your lesion mask: "+err.message);
         console.log(err);
-        return alert("There was an error uploading your lesion mask: ", err.message);
+        return;
     });
 }
