@@ -25,9 +25,10 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     * 182x218x182 voxels (best) or 181x217x181 (this sometimes results if upsampling SPM 2mm output to 1mm)
 * Lesion mask = NIfTI volume (*.nii.gz or *.nii)
 * Parcellation (optional) = NIfTI volume with labeled voxels (*.nii.gz or *.nii)
+    * Note: Pipeline only considers sequential ROI label values. For example, a parcellation containing only label values [10,20,30,40] will produce an 4x1 output, or a 4x4 output in pairwise mode
 * Resolution = mm resolution for outputs. Default=1mm, but this leads to large output files for the pairwise <code>chacoconn</code> and 420-subject <code>*\_allref.pkl</code>
     * e.g., For a single very extensive lesion mask, <code>chacovol\_allref</code> can be as large as 700MB, and <code>chacoconn\_allref</code> can be 10s of GB
-* Currently, this package treats the lesion volume as a binary mask (0 = healthy tissue, >0 = tissue damage)
+* Currently, this package treats the lesion volume as a binary mask (0 = healthy tissue, <0 or >0 = tissue damage)
     
 ## Output
 * <code>chacovol</code> = voxelwise or regionwise ChaCo ratio
@@ -79,4 +80,5 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 * Yeo 2011 7-networks: 7-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
 * Yeo 2011 17-networks: 17-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
 * Custom: Any 1mm MNI (182x218x182) parcellation volume
+    * Note: Pipeline only considers sequential ROI label values. For example, a parcellation containing only label values [10,20,30,40] will produce an 4x1 output, or a 4x4 output in pairwise mode
 * See files in [website/atlases/](website/atlases/)

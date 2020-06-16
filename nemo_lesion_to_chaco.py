@@ -295,7 +295,8 @@ Ldata=Ldata/np.max(Ldata) #this will be useful if we do a continuous-valued vers
 if do_continuous:
     Lmask=Ldata.flatten().astype(np.float32)
 else:
-    Lmask=Ldata.flatten()>0
+    #remember to change nemo_save_average_glassbrain.py --binarize option if we change this!
+    Lmask=Ldata.flatten()!=0
 
 
 ##################

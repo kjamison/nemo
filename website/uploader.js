@@ -15,7 +15,7 @@ var parclist=[];
 
 var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',roicount:116},
     'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',roicount:200},
-    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',roicount:400},
+    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',roicount:392},
     'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',roicount:268},
     'fs86avg': {name: 'FreeSurferAverage86 (DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},
     'fs86subj': {name: 'FreeSurfer86 (subj-specific DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},

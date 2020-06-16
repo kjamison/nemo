@@ -153,6 +153,7 @@ weightedarg=""
 cumulativearg=""
 continuousarg=""
 debugarg=""
+binarizearg="--binarize" #for glassbrain.py
 s3arg=""
 if [ "${do_smoothing}" = "true" ]; then
     smoothedarg="--smoothed"
@@ -172,6 +173,7 @@ fi
 
 if [ "${do_continuous}" = "true" ]; then
     continuousarg="--continuous_value"
+    binarizearg=""
 fi
 
 if [ "${do_debug}" = "true" ]; then
@@ -306,7 +308,7 @@ input_status_key=$(echo ${s3path} | sed -E 's#^[^/]+/##')${status_suffix}
 #password must have worked if we got this far (or it wasn't using a password)
 input_status_tagstring='password_status=success'
 
-imgsize=$(python nemo_save_average_glassbrain.py ${input_lesion_image} --jet $(cat ${inputfile_listfile}))
+imgsize=$(python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile}))
 if [ -e ${input_lesion_image} ]; then
     input_status_tagstring+="&input_checks=success&imgshape=${imgsize}"
 else
@@ -385,20 +387,20 @@ while read inputfile; do
 done < ${inputfile_listfile}
 
 if [ "${success_count}" -gt "1" ]; then
-    python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --jet $(cat ${inputfile_listfile})
+    python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
     for out_name in ${output_namelist}; do
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.nii.gz 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
+        python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
         if [ "${do_smoothing}" = "true" ]; then
             smoothstr=$(basename $(ls ${outputdir}/*_${out_name}_smooth*.png 2>/dev/null | head -n1) 2>/dev/null | tr "_" "\n" | grep -i smooth | tail -n1)
             outfile_meanlist=$(ls ${outputdir}/*_${out_name}_${smoothstr}_mean.nii.gz 2>/dev/null)
             if [ "x${outfile_meanlist}" = "x" ] || [ "${smoothstr}" = "x" ]; then
                 continue
             fi
-            python nemo_save_average_glassbrain.py ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
+            python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
         fi
     done
 fi
