@@ -23,8 +23,8 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 ## Input
 * **NOTE: All input volumes must already be transformed into 1mm MNI152 v6 space** (eg: using FSL's FNIRT or ANTs) 
     * 182x218x182 voxels (best) or 181x217x181 (this sometimes results if upsampling SPM 2mm output to 1mm)
-* Lesion mask = NiFTI volume (*.nii.gz or *.nii)
-* Parcellation (optional) = NiFTI volume with labeled voxels (*.nii.gz or *.nii)
+* Lesion mask = NIfTI volume (*.nii.gz or *.nii)
+* Parcellation (optional) = NIfTI volume with labeled voxels (*.nii.gz or *.nii)
 * Resolution = mm resolution for outputs. Default=1mm, but this leads to large output files for the pairwise <code>chacoconn</code> and 420-subject <code>*\_allref.pkl</code>
     * e.g., For a single very extensive lesion mask, <code>chacovol\_allref</code> can be as large as 700MB, and <code>chacoconn\_allref</code> can be 10s of GB
 * Currently, this package treats the lesion volume as a binary mask (0 = healthy tissue, >0 = tissue damage)

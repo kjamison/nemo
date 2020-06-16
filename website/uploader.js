@@ -13,15 +13,15 @@ var nemo_version_info = null;
 var reslist=[];
 var parclist=[];
 
-var atlasinfo = {'aal': {'name': 'AAL', 'thumbnail':'images/thumbnail_aal.png','roicount':116},
-    'cc200': {'name': 'CC200', 'thumbnail':'images/thumbnail_cc200.png','roicount':200},
-    'cc400': {'name': 'CC400', 'thumbnail':'images/thumbnail_cc400.png','roicount':400},
-    'shen268': {'name': 'Shen268', 'thumbnail':'images/thumbnail_shen268.png','roicount':268},
-    'fs86avg': {'name': 'FreeSurferAverage86 (DKT+aseg)', 'thumbnail':'images/thumbnail_fs86.png','roicount':86},
-    'fs86subj': {'name': 'FreeSurfer86 (subj-specific DKT+aseg)', 'thumbnail':'images/thumbnail_fs86.png','roicount':86},
-    'fs111subj': {'name': 'FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)', 'thumbnail':'images/thumbnail_fs111cereb.png','roicount':111},
-    'yeo7': {'name': 'Yeo2011 7-networks', 'thumbnail':'images/thumbnail_yeo7.png', 'roicount':7},
-    'yeo17': {'name': 'Yeo2011 17-networks', 'thumbnail':'images/thumbnail_yeo17.png', 'roicount':17},
+var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',roicount:116},
+    'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',roicount:200},
+    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',roicount:400},
+    'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',roicount:268},
+    'fs86avg': {name: 'FreeSurferAverage86 (DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},
+    'fs86subj': {name: 'FreeSurfer86 (subj-specific DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},
+    'fs111subj': {name: 'FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)', thumbnail:'images/thumbnail_fs111cereb.png',roicount:111},
+    'yeo7': {name: 'Yeo2011 7-networks', thumbnail:'images/thumbnail_yeo7.png', roicount:7},
+    'yeo17': {name: 'Yeo2011 17-networks', thumbnail:'images/thumbnail_yeo17.png', roicount:17},
 };
 
 AWS.config.update({
@@ -108,7 +108,7 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
             
             if (tags["input_checks"]=="success"){
                 s3.getObject(s3params,function(err,file){
-                    statusimgdiv.innerHTML="</br><h4>Input lesion mask</h4></br><img src='data:image/png;base64," + base64_encode(file.Body)+"'>";
+                    statusimgdiv.innerHTML="<div class='statusimage'>Input lesion mask</br><img src='data:image/png;base64," + base64_encode(file.Body)+"'></div>";
                 });
             } else if(tags["input_checks"]=="error"){
                 errorMessage("Input file error!");
@@ -136,23 +136,23 @@ function showUploader(run_internal_script) {
     if(run_internal_script){
         extra_html+=['<label for="outputlocation">Copy to S3 location: s3://</label>',
         '<input id="outputlocation" type="text" size="50" value="kuceyeski-wcm-temp/kwj2001/nemo_output"><br/><br/>',
-        '<label for="coco_password">Password</label>',
+        '<label for="coco_password">Password:</label>',
         '<input id="coco_password" type="password" value=""><br/><br/>'].join('\n');
     }
     
-    if(document.URL.startsWith("file:///"))
+    if(document.URL.startsWith("file:///")){
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
-    
+    }
     var htmlTemplate = [
-        '<div>',
+        '<div id="mninote">',
         'Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
         'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
         '</div>',
         '<br/>',
         '<label for="email">E-mail address:</label>',
         '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
-        '<label for="fileupload">MNI Lesion Nifti file:</label>',
+        '<label for="fileupload">MNI Lesion NIfTI file:</label>',
         '<div class="filediv">',
         '<input id="fileupload" type="file" accept=".gz,.nii,.zip" class="fileinfo">',
         '<label id="filesize" class="fileinfo"></label>',
@@ -171,10 +171,11 @@ function showUploader(run_internal_script) {
         getParcSelectHtml("addparc_select"),
         '<button id="addparc_button" class="button" onclick="addOutput(\'parc\',\'addparc_select\',false)">Add</button>',
         '<br/>',
+        '<div class="parcdiv_top"></div>',
         '<div id="resdiv"></div><div id="parcdiv"></div>',
-        '<br/><br/>',
+        '<br/>',
         extra_html,
-        '<button id="upload" onclick="submitMask()" class="button">Submit File</button>',
+        '<div style="text-align:center"><button id="upload" onclick="submitMask()" class="bigbutton">Submit File</button></div>',
         '<div id="uploadstatus"></div><div id="uploadstatusimage"></div>',
         '<div id="version" class="versiondiv"></div>'
     ];
@@ -187,6 +188,7 @@ function showUploader(run_internal_script) {
     
     //get version info
     if(document.URL.startsWith("file:///")){
+        nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
         document.getElementById('version').innerHTML="NeMo vLOCAL";
     } else {
         jsonurl='config/nemo-version.json';
@@ -386,6 +388,12 @@ function submitMask() {
     var resdivchildren = document.getElementById("resdiv").childNodes;
     var parcdivchildren = document.getElementById("parcdiv").childNodes;
     var resparc=Array.prototype.slice.call(resdivchildren).concat(Array.prototype.slice.call(parcdivchildren));
+    
+    if(resparc.length == 0){
+        errorMessage("Please add at least one output resolution or parcellation.");
+        return;
+    }
+    
     for(var i=0; i<resparc.length; i++){
         var this_id=resparc[i].id;
         var this_pairwise=document.getElementById(this_id+"_pairwise").checked;
@@ -466,7 +474,7 @@ function submitMask() {
     //console.log(outputs_taglist);
 
     if (!files.length) {
-        errorMessage("Please choose a file to upload first!");
+        errorMessage("Please choose a lesion file to upload first!");
         return;
     }
     if (!email.length) {
@@ -510,9 +518,8 @@ function submitMask() {
     if (cocopassword) taglist.push({Key: 'coco_password', Value: cocopassword.value});
     if (debug_input) taglist.push({Key: 'debug', Value: debug_input.checked});
     
-    var config_taglist=[{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative}];
-    config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
-    config_taglist=config_taglist.concat(config_taglist);
+    var config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
+    config_taglist=config_taglist.concat([{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative}]);
     
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);

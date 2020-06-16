@@ -1,10 +1,13 @@
 body { 
     font-family: sans-serif; 
+    background-color: #f8f8ff;
 }
 .uploadform {
     border: solid black 1pt;
     display: inline-block;
     padding: 10pt;
+    background-color: white;
+    border-radius: 3pt;
 }
 .fileinfo {
     font-family: sans-serif;
@@ -15,9 +18,14 @@ body {
     border: 1pt solid lightgray; 
     padding: 2pt;
 }
+.parcdiv_top {
+    border-bottom: 2pt solid lightgray; 
+    padding-top: 8pt;
+    margin: 4pt;
+}
 .parcdiv {
     display: block; 
-    border: 1pt solid gray; 
+    border-bottom: 2pt solid lightgray; 
     padding: 8pt;
     margin: 4pt;
 }
@@ -27,20 +35,33 @@ body {
     color: lightgray;
     padding-top: .5em;
 }
+.statusimage {
+    background-color: white;
+    border: solid lightgray 1pt;
+    padding: 4pt;
+    font-weight: bold;
+}
 .button {
     font-size: 12pt;
+}
+.bigbutton {
+    font-size: 14pt;
 }
 .statustext_good {
     color: darkgreen;
     background-color: lightgreen;
     margin-top: 1em;
+    margin-bottom: 1em;
     padding:.5em;
+    box-shadow: 3px 3px 10px gray;
 }
 .statustext_bad {
     color: darkred;
     background-color: lightpink;
     margin-top: 1em;
+    margin-bottom: 1em;
     padding:.5em;
+    box-shadow: 3px 3px 10px gray;
 }
 .statustext_neutral {
     color: gray;
