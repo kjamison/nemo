@@ -13,15 +13,27 @@ var nemo_version_info = null;
 var reslist=[];
 var parclist=[];
 
-var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',roicount:116},
-    'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',roicount:200},
-    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',roicount:392},
-    'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',roicount:268},
-    'fs86avg': {name: 'FreeSurferAverage86 (DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},
-    'fs86subj': {name: 'FreeSurfer86 (subj-specific DKT+aseg)', thumbnail:'images/thumbnail_fs86.png',roicount:86},
-    'fs111subj': {name: 'FreeSurferSUIT111 (subj-specific DKT+aseg+SUIT cereb)', thumbnail:'images/thumbnail_fs111cereb.png',roicount:111},
-    'yeo7': {name: 'Yeo2011 7-networks', thumbnail:'images/thumbnail_yeo7.png', roicount:7},
-    'yeo17': {name: 'Yeo2011 17-networks', thumbnail:'images/thumbnail_yeo17.png', roicount:17},
+var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
+    'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
+    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
+    'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},
+    'fs86avg': {name: 'FreeSurferAverage86', thumbnail:'images/thumbnail_fs86.png',description:'Subject averaged Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
+    'fs86subj': {name: 'FreeSurfer86', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
+    'fs111subj': {name: 'FreeSurferSUIT111', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (14 subcortical, no brainstem) + SUIT (27 cerebellar)'},
+    'yeo7': {name: 'Yeo2011 7-networks', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
+    'yeo17': {name: 'Yeo2011 17-networks', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
+};
+
+var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels'},
+    '2': {name:'2 mm', thumbnail:'images/thumbnail_res2mm.png', description:'91x109x91 (902629 voxels), 201891 streamline endpoint voxels'},
+    '3': {name:'3 mm', thumbnail:'images/thumbnail_res3mm.png', description:'61x73x61 (271633 voxels), 64823 streamline endpoint voxels'},
+    '4': {name:'4 mm', thumbnail:'images/thumbnail_res4mm.png', description:'46x55x46 (116380 voxels), 28796 streamline endpoint voxels'},
+    '5': {name:'5 mm', thumbnail:'images/thumbnail_res5mm.png', description:'37x44x37 (60236 voxels), 15550 streamline endpoint voxels'},
+    '6': {name:'6 mm', thumbnail:'images/thumbnail_res6mm.png', description:'31x37x31 (35557 voxels), 9360 streamline endpoint voxels'},
+    '7': {name:'7 mm', thumbnail:'images/thumbnail_res7mm.png', description:'26x32x26 (21632 voxels), 6103 streamline endpoint voxels'},
+    '8': {name:'8 mm', thumbnail:'images/thumbnail_res8mm.png', description:'23x28x23 (14812 voxels), 4234 streamline endpoint voxels'},
+    '9': {name:'9 mm', thumbnail:'images/thumbnail_res9mm.png', description:'21x25x21 (11025 voxels), 3054 streamline endpoint voxels'},
+    '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels'}
 };
 
 AWS.config.update({
@@ -232,8 +244,9 @@ function neutralMessage(message,keep_buttons_disabled){
 function getResolutionSelectHtml(id){
     htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
-    for(var i=1; i<=10; i++){
-        htmlTemplate.push('<option value="'+i+'">'+i+' mm</option>');
+    resnames=Object.keys(resinfo);
+    for(var i=0; i<resnames.length; i++){
+        htmlTemplate.push('<option value="'+resnames[i]+'">'+resinfo[resnames[i]]['name']+'</option>');
     }
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
@@ -304,13 +317,23 @@ function addOutput(parc_or_res, select_id, init1mm){
             '<label id="'+newfilelabel_id+'" class="fileinfo"></label>');
         } else {
             if(atlasinfo[selvalue] && atlasinfo[selvalue]['thumbnail'])
-                htmlTemplate.push('<div style="float:right; padding-right: 20pt"><img src="'+atlasinfo[selvalue]['thumbnail']+'"></div>');
+                htmlTemplate.push('<div style="float:right; padding-right: 20pt"><a href="'+atlasinfo[selvalue]['thumbnail'].replace(".png","_large.png")+'" target="_blank"><img src="'+atlasinfo[selvalue]['thumbnail']+'"></a></div>');
+            var parc_description=""
+            if (atlasinfo[selvalue]['description'])
+                parc_description="<br/><div class='parcdiv_description'>"+atlasinfo[selvalue]['description']+'</div>';
             
-            htmlTemplate.push('Parcellation name: '+seltext,
+            htmlTemplate.push('Parcellation: '+seltext+parc_description,
             '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
         }
     } else if (parc_or_res=="res") {
-        htmlTemplate.push('Resolution: '+seltext,
+        if(resinfo[selvalue] && resinfo[selvalue]['thumbnail'])
+            htmlTemplate.push('<div style="float:right; padding-right: 20pt"><a href="'+resinfo[selvalue]['thumbnail'].replace(".png","_large.png")+'" target="_blank"><img src="'+resinfo[selvalue]['thumbnail']+'"></a></div>');
+        
+        var res_description=""
+        if (resinfo[selvalue]['description'])
+            res_description="<br/><div class='parcdiv_description'>"+resinfo[selvalue]['description']+'</div>';
+        
+        htmlTemplate.push('Resolution: '+seltext+res_description,
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
