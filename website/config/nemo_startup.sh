@@ -451,6 +451,8 @@ if [ "${do_s3direct}"  = "1" ]; then
     #add the s3 output location for internal direct s3 copy mode
     jq --arg resultlocation "${s3direct_resultpath}" '.+{resultlocation:$resultlocation}' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
     
+    #for s3direct, output body to copy should just be something small like the main png (since it's only used to trigger)
+    outputfilename=$(ls *.png | head -n1)
 else
     cd ${outputdir}
     outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}.zip
@@ -485,10 +487,8 @@ jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstat
 
 if [ "${success_count}" -gt "1" ]; then
     aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile} --include ${uploadjson}
-    outputfilename=$(ls *_listmean.png | head -n1)
 else
     aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile} --include ${uploadjson}
-    outputfilename=$(ls *.png | head -n1)
 fi
 
 output_tagstring="email=${email}"

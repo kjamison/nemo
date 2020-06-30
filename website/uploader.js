@@ -17,9 +17,9 @@ var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',descr
     'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
     'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
     'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},
-    'fs86avg': {name: 'FreeSurferAverage86', thumbnail:'images/thumbnail_fs86.png',description:'Subject averaged Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
-    'fs86subj': {name: 'FreeSurfer86', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
-    'fs111subj': {name: 'FreeSurferSUIT111', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (14 subcortical, no brainstem) + SUIT (27 cerebellar)'},
+    'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
+    'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
+    'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (14 subcortical, no brainstem) + SUIT (27 cerebellar)'},
     'yeo7': {name: 'Yeo2011 7-networks', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
     'yeo17': {name: 'Yeo2011 17-networks', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
 };
@@ -310,7 +310,7 @@ function addOutput(parc_or_res, select_id, init1mm){
             newfileinput_id=newid+'_fileupload';
             newfilelabel_id=newid+'_filesize';
             newparctext="parc"+("000000"+newindex).substr(-3);
-            htmlTemplate.push('Custom parcellation name: ',
+            htmlTemplate.push('<b>Custom parcellation name: </b>',
             '<input id="'+newid+'_customname" type="text" size="25" value="'+newparctext+'">',
             '<br/><br/>',
             '<input id="'+newfileinput_id+'" type="file" accept=".gz,.nii" class="fileinfo">',
@@ -322,7 +322,7 @@ function addOutput(parc_or_res, select_id, init1mm){
             if (atlasinfo[selvalue]['description'])
                 parc_description="<br/><div class='parcdiv_description'>"+atlasinfo[selvalue]['description']+'</div>';
             
-            htmlTemplate.push('Parcellation: '+seltext+parc_description,
+            htmlTemplate.push('<b>Parcellation: '+seltext+'</b>'+parc_description,
             '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
         }
     } else if (parc_or_res=="res") {
@@ -333,7 +333,7 @@ function addOutput(parc_or_res, select_id, init1mm){
         if (resinfo[selvalue]['description'])
             res_description="<br/><div class='parcdiv_description'>"+resinfo[selvalue]['description']+'</div>';
         
-        htmlTemplate.push('Resolution: '+seltext+res_description,
+        htmlTemplate.push('<b>Resolution: '+seltext+'</b>'+res_description,
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
@@ -495,7 +495,7 @@ function submitMask() {
     if(outputs_prefixlist.length>0)
         outputs_taglist.push({Key: "output_prefix_list", Value: outputs_prefixlist.join(",")});
     //console.log(outputs_taglist);
-
+    
     if (!files.length) {
         errorMessage("Please choose a lesion file to upload first!");
         return;
@@ -504,6 +504,15 @@ function submitMask() {
         errorMessage("Please enter an email!")
         return;
     }
+    if (cocopassword && !cocopassword.value.length) {
+        errorMessage("Please enter a password!")
+        return;
+    }
+    if (outputlocation && !outputlocation.value.length) {
+        errorMessage("Please enter an S3 output location!")
+        return;
+    }
+    
     var file = files[0];
     var fileName = file.name;
 
@@ -537,8 +546,6 @@ function submitMask() {
         {Key: 'timestamp', Value: newTimestamp}, {Key: 'unixtime', Value: Date.now()}, 
         {Key: 'status_suffix', Value: uploadStatusSuffix}];
 
-    if (outputlocation) taglist.push({Key: 'outputlocation', Value: outputlocation.value});
-    if (cocopassword) taglist.push({Key: 'coco_password', Value: cocopassword.value});
     if (debug_input) taglist.push({Key: 'debug', Value: debug_input.checked});
     
     var config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
@@ -546,15 +553,20 @@ function submitMask() {
     
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);
+    
+    // Add cocopassword and output location to taglist AFTER we copy taglist into config_taglist
+    // so that the cocopassword is NOT in the config FILE, only in the S3 object tag
+    if (cocopassword) taglist.push({Key: 'coco_password', Value: cocopassword.value});
+    if (outputlocation) taglist.push({Key: 'outputlocation', Value: outputlocation.value});
     //////////////////////////////////////////////////////////
     var jsonse=JSON.stringify(config_taglist);
-    var blob = new Blob([jsonse], {type: "application/json"});
+    var config_blob = new Blob([jsonse], {type: "application/json"});
     
     var upload = new AWS.S3.ManagedUpload({
     params: {
         Bucket: uploadBucketName,
         Key: newKey+"_config.json",
-        Body: blob,
+        Body: config_blob,
         ACL: "bucket-owner-full-control" 
     }
     });

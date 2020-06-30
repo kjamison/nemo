@@ -227,7 +227,11 @@ def lambda_handler(raw_event, context):
             s3tagdict['s3path']=bucket+"/"+key
             s3tagdict['s3nemoroot']=NEMO_DATA_STORAGE_LOCATION
             s3tagdict['s3configbucket']=CONFIG_BUCKET_NAME
-        
+            
+            #remove this if found since it shouldn't be copied over from ['outputlocation'] before we've checked the password
+            if 's3direct_outputlocation' in s3tagdict:
+                del s3tagdict['s3direct_outputlocation']
+                
             #check if password was entered and matches
             if 'coco_password' in s3tagdict: 
                 if s3tagdict['coco_password'] == COCO_PASSWORD:
