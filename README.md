@@ -66,12 +66,12 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 * This set of 420 7Mx5M sparse matrices can be used to compute ChaCo scores, but would require downloading the entire 700GB database every single time we run the tool. Instead, we divide the sparsemats into 10x10x10 voxel "chunks", where each chunk file contains the [420*1000 x 5M] sparse matrix of streamlines for all 420 subjects through that cube of MNI space. Thus, we only download the "chunks" that overlap the input mask to determine which streamlines intersect our lesion. 
 
 ## Parcellations
-* FreeSurfer86: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
+* FreeSurfer86-subj: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
     * This atlas includes the 70 cortical DKT regions + 16 subcortical (excluding brain-stem)
     * For this atlas, each of the 420 HCP reference subjects has their own subject-specific parcellation that we use when assigning streamlines to ROIs
-* FreeSurferSUIT111: 111-region atlas with 70 DKT cortical + 14 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
+* FreeSurferSUIT111-subj: 111-region atlas with 70 DKT cortical + 14 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
     * Like the FreeSurfer86, this is a subject-specific parcellation
-* FreeSurferAverage86: Same regions as FreeSurfer86 but defined as a single group-level MNI volume 
+* FreeSurfer86-avg: Same regions as FreeSurfer86-subj but defined as a single group-level MNI volume 
     * Each subject parcellation was mode-dilated by 1mm, then we computed the mode across all subjects
 * AAL: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
 * CC200: 200-region whole-brain cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)

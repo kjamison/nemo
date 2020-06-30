@@ -4,30 +4,31 @@ body {
 }
 
 .headerdiv {
-    border: solid #bbbbbb 1pt;
+    border: solid #444444 2pt;
     display: inline-block;
     padding: 0pt;
     background-color: white;
-    border-top-left-radius: 3pt;
-    border-bottom-right-radius: 3pt;
-    border-top-right-radius: 10pt;
-    border-bottom-left-radius: 10pt;
+    border-top-left-radius: 0pt;
+    border-bottom-right-radius: 0pt;
+    border-top-right-radius: 15pt;
+    border-bottom-left-radius: 15pt;
     background-color: #dddddd; 
     margin-bottom: 4pt;
 }
 .headerimg {
     height: 150px;
     display: block;
+    margin: -1px;
 }
 .uploadform {
-    border: solid black 1pt;
+    border: solid #444444 2pt;
     display: inline-block;
     padding: 10pt;
     background-color: white;
-    border-top-left-radius: 3pt;
-    border-bottom-right-radius: 3pt;
-    border-top-right-radius: 10pt;
-    border-bottom-left-radius: 10pt;
+    border-top-left-radius: 0pt;
+    border-bottom-right-radius: 0pt;
+    border-top-right-radius: 15pt;
+    border-bottom-left-radius: 15pt;
 }
 .fileinfo {
     font-family: sans-serif;
@@ -42,16 +43,20 @@ body {
     border-bottom: 2pt solid lightgray; 
     padding-top: 8pt;
     margin: 4pt;
+    margin-left: -2pt;
+    margin-right: -2pt;
 }
 .parcdiv {
     display: block; 
     border-bottom: 2pt solid lightgray; 
     padding: 8pt;
     margin: 4pt;
+    margin-left: -2pt;
+    margin-right: -2pt;
 }
 .parcdiv_description {
     font-size: 10pt;
-    color: darkgray
+    color: gray;
 }
 .versiondiv {
     font-size: 10pt; 
@@ -91,4 +96,12 @@ body {
     color: gray;
     margin-top: 1em;
     padding:.5em;
+}
+.mninote {
+    padding-left: 10pt;
+    padding-right: 10pt;
+    padding-top: 5pt;
+    width: 100%;
+    font-size: 10pt;
+    color: gray;
 }

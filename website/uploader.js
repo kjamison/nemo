@@ -157,18 +157,19 @@ function showUploader(run_internal_script) {
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
     }
     var htmlTemplate = [
-        '<div id="mninote">',
-        'Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
-        'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
-        '</div>',
-        '<br/>',
         '<label for="email">E-mail address:</label>',
         '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
         '<label for="fileupload">MNI Lesion NIfTI file:</label>',
         '<div class="filediv">',
         '<input id="fileupload" type="file" accept=".gz,.nii,.zip" class="fileinfo">',
         '<label id="filesize" class="fileinfo"></label>',
-        '</div><br/><br/>',
+        '</div><br/>',
+        '<div id="mninote" class="mninote">',
+        'Note: Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
+        'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
+        '</div>',
+        '<br/>',
+        'General options:<br/>',
         '<input type="checkbox" id="cumulative" name="cumulative" value="1">',
         '<label for="cumulative">Accumulate total hits along streamline</label><br/>',
         '<input type="checkbox" id="siftweights" name="siftweights" value="1" checked>',
@@ -177,11 +178,9 @@ function showUploader(run_internal_script) {
         '<label for="smoothing">Include smoothed mean images</label><br/><br/>',
         '<label for="addres_select">Add output resolution:</label>',
         getResolutionSelectHtml("addres_select"),
-        '<button id="addres_button" class="button" onclick="addOutput(\'res\',\'addres_select\',false)">Add</button>',
         '<br/>',
         '<label for="addparc_select">Add output parcellation:</label>',
         getParcSelectHtml("addparc_select"),
-        '<button id="addparc_button" class="button" onclick="addOutput(\'parc\',\'addparc_select\',false)">Add</button>',
         '<br/>',
         '<div class="parcdiv_top"></div>',
         '<div id="resdiv"></div><div id="parcdiv"></div>',
@@ -242,7 +241,7 @@ function neutralMessage(message,keep_buttons_disabled){
 
 
 function getResolutionSelectHtml(id){
-    htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
+    htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'res\',\'addres_select\',false)">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
     resnames=Object.keys(resinfo);
     for(var i=0; i<resnames.length; i++){
@@ -253,7 +252,7 @@ function getResolutionSelectHtml(id){
 }
 
 function getParcSelectHtml(id){
-    htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
+    htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'parc\',\'addparc_select\',false)">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
     atlasnames=Object.keys(atlasinfo);
     for(var i = 0; i < atlasnames.length; i++){
@@ -281,7 +280,8 @@ function addOutput(parc_or_res, select_id, init1mm){
         allrefchecked="checked"
         pairwisechecked="checked"
     }
-    
+    if(select_id)
+        document.getElementById(select_id).selectedIndex=0;
     if (parc_or_res=="parc" && selvalue != "custom" ){
         if(parclist.indexOf(selvalue)>=0)
             return;
@@ -337,7 +337,7 @@ function addOutput(parc_or_res, select_id, init1mm){
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
-    htmlTemplate.push('<br/><br/><input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
+    htmlTemplate.push('<br/><input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
         '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label><br/>',
         '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" '+allrefchecked+'>',
         '<label for="'+newid+'_output_allref">Output ChaCo for each reference subject (large file size)</label><br/>');
