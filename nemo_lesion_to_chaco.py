@@ -686,7 +686,9 @@ def map_to_endpoints_conn(isubj):
         denom_val[endpt_iszero]=0
         
         #only need to store denominator when numerator (T) is non-zero
-        Aconnsum=sparse.csr_matrix((denom_val[T.indices],(endpt1[T.indices],endpt2[T.indices])),shape=(numvoxels,numvoxels),dtype=np.float32)
+        #actually no! since we use this for parcellation we will lose all the other voxels in the parcel and the parcellated ratios will all be ~1!
+        #Aconnsum=sparse.csr_matrix((denom_val[T.indices],(endpt1[T.indices],endpt2[T.indices])),shape=(numvoxels,numvoxels),dtype=np.float32)
+        Aconnsum=sparse.csr_matrix((denom_val,(endpt1,endpt2)),shape=(numvoxels,numvoxels),dtype=np.float32)
         Aconnsum.eliminate_zeros()
         if do_save_fullconn:
             chacofile_subj=tmpdir+'/chacoconn_denom_subj%05d.npz' % (isubj)
@@ -925,6 +927,13 @@ def save_chaco_output(chaco_output):
         chacosqmean/=len(chaco_allsubj)
         chacostd=np.sqrt(chacosqmean - chacomean.multiply(chacomean))
 
+    #this sqrt can be negative sometimes!
+    #assuming it's just a numerical precision thing and set it to 0
+    if sparse.issparse(chacostd):
+        chacostd.data[np.isnan(chacostd.data)]=0
+    else:
+        chacostd[np.isnan(chacostd)]=0
+
     outfile_pickle=outputbase+'_'+chaco_output['name']+"_allref.pkl"
     pickle.dump(chaco_allsubj, open(outfile_pickle,"wb"))
 
@@ -1016,7 +1025,13 @@ if do_smooth:
         chaco_smooth=sparse.vstack(chaco_smooth)
         chaco_smooth_mean=np.array(np.mean(chaco_smooth,axis=0))
         chaco_smooth_std=np.sqrt(np.array(np.mean(chaco_smooth.multiply(chaco_smooth),axis=0) - chaco_smooth_mean**2))
-
+        #this sqrt can be negative sometimes!
+        #assuming it's just a numerical precision thing and set it to 0
+        if sparse.issparse(chaco_smooth_std):
+            chaco_smooth_std.data[np.isnan(chaco_smooth_std.data)]=0
+        else:
+            chaco_smooth_std[np.isnan(chaco_smooth_std)]=0
+        
         outimg=nib.Nifti1Image(np.reshape(np.array(chaco_smooth_mean),chaco_output['reshape'].shape),affine=chaco_output['reshape'].affine, header=chaco_output['reshape'].header)
         imgfile=outputbase+'_glassbrain_%s_smooth%gmm_mean.png' % (chaco_output['name'],smoothing_fwhm)
         plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
