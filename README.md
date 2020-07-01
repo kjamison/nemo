@@ -46,7 +46,25 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     <code>import pickle; data = pickle.load(open("filename.pkl","rb"))</code>
 * <code>*.npz</code> are [SciPy sparse matrices](https://docs.scipy.org/doc/scipy/reference/sparse.html) that can be read using:
         <code>import numpy as np; from scipy import sparse; data = sparse.load\_npz("filename.npz")</code>
+* To convert outputs to another format, you will need to use Python:
+    ```
+    import pickle
+    import numpy as np
+
+    data = pickle.load(open("mylesion_chacovol_mean.pkl","rb"))
+    #save as text/tsv/csv
+    np.savetxt("mylesion_chacovol_mean.txt",data,delimiter="\t")
     
+    #for sparse output files (eg: chacoconn, *_allref), need to convert 
+    # sparse->dense before saving txt but note this can create very large files
+    data = pickle.load(open("mylesion_chacoconn_mean.pkl","rb"))
+    np.savetxt("mylesion_chacoconn_mean.txt",data.toarray(),delimiter="\t")
+    
+    #save as matlab .mat file
+    from scipy.io import savemat
+    savemat("mylesion_chacovol_mean.mat",{"data": data})
+    # (load in matlab with M=load("mylesion_chacovol_mean.mat"); data=M.data;)
+    ```
 ## Website usage
 * Coming soon
 
