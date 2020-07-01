@@ -194,6 +194,7 @@ function showUploader(run_internal_script) {
     document.getElementById('fileupload').onchange = function(){
         var filesize = document.getElementById('fileupload').files[0].size;
         document.getElementById('filesize').innerHTML="(" + filesizestring(filesize) + ")";
+        neutralMessage(""); //clear previous messages
     }
     addOutput("res",null,true);
     
@@ -265,6 +266,7 @@ function getParcSelectHtml(id){
 }
 
 function addOutput(parc_or_res, select_id, init1mm){
+    neutralMessage(""); //clear previous messages
     var allrefchecked=""
     var pairwisechecked=""
     if(init1mm){
@@ -371,7 +373,7 @@ function removeOutput(id){
         }
     }
     document.getElementById(id).remove();
-    
+    neutralMessage(""); //clear previous messages
 }
 
 function getNextAvailableId(idprefix,startindex){
