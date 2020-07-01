@@ -333,6 +333,10 @@ fi
 
 
 #############
+
+ziplistfile=${outputdir}/output_ziplist.txt
+ziplistfile_bytes=${outputdir}/output_bytes_ziplist.txt
+    
 finalstatus="success"
 success_count=0
 while read inputfile; do
@@ -388,6 +392,11 @@ while read inputfile; do
     if [ "${do_s3direct}"  = "1" ]; then
         #copy all data to a new s3 bucket
         aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*"
+        #update ziplistfile as we go, so we can delete files as we go
+        (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
+        (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
+        #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
+        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|.png)$' | xargs rm -f
     fi
 done < ${inputfile_listfile}
 
@@ -433,11 +442,16 @@ echo "{}" > ${uploadjson}
 #copy output directly to S3 or zip and upload to website
 if [ "${do_s3direct}"  = "1" ]; then
     cd ${outputdir}
-    ziplistfile=${outputbase}_ziplist.txt
-    du -h * > ${ziplistfile}
+    du -h --apparent-size * >> ${ziplistfile}
+    sort -uk2 ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
     grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
+    grep -vE $(basename ${ziplistfile})'$' ${ziplistfile} | grep -vE $(basename ${ziplistfile_bytes})'$' > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
     
-    outputsize=$(du -hs ./ | awk '{print $1}')
+    #outputsize=$(du -hs ./ | awk '{print $1}')
+    outputsize_bytes=$(sort -uk2 ${ziplistfile_bytes} | awk 'BEGIN{a=0}{a+=$1}END{print a}')
+    #  if(a>1024*1024*1024}')
+    outputsize=$(echo ${outputsize_bytes} | awk '{if($1>1024*1024*1024){printf "%.1fG",$1/(1024*1024*1024)} else if($1>1024*1024){printf "%.1fM",$1/(1024*1024)} else if($1>1024){printf "%.1fK",$1/(1024)} else {print $1}}')
+    rm -f ${ziplistfile_bytes}
     outputsize_unzipped=""
 
     endtime=$(date +%s)
@@ -462,8 +476,7 @@ else
     cd ${outputdir}
     outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}.zip
     rm -f ${outputfilename}
-    ziplistfile=${outputbase}_ziplist.txt
-    du -h * > ${ziplistfile}
+    du -h --apparent-size * > ${ziplistfile}
     grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
     
     outputsize_unzipped=$(du -hs ./ | awk '{print $1}')
