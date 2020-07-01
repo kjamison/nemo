@@ -275,6 +275,9 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
             out_roilistfile=${atlasdir}/$(echo $atlasline | awk -F, '{print $3}')
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
         fi
+        if [ ${out_pairwise} = "false" ]; then
+            parcarg_tmp+="?nopairwise"
+        fi
         parcelarg+=" ${parcarg_tmp}"
 
     elif  [[ $o == addres* ]]; then
@@ -286,7 +289,9 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
-        
+        if [ ${out_pairwise} = "false" ]; then
+            resarg_tmp+="?nopairwise"
+        fi
         resolutionarg+=" ${resarg_tmp}"
     fi
 

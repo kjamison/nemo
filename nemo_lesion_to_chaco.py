@@ -308,6 +308,14 @@ origres_name="res%dmm" % (origvoxmm)
 if new_resolution:
     volshape=refimg.shape
     for r in new_resolution:
+        r_pairwise=do_pairwise
+        
+        if r.find("?") >= 0:
+            #handle ?nopairwise option
+            r_opts=r.split("?")[1:]
+            r=r.split("?")[0]
+            if "nopairwise" in r_opts:
+                r_pairwise=False
         if r.find("=") >= 0:
             [r,rname]=r.split("=")
             newvoxmm=round(abs(float(r)))
@@ -315,21 +323,33 @@ if new_resolution:
             newvoxmm=round(abs(float(r)))
             rname="res%dmm" % (newvoxmm)
         
+        r_pairwisestr=""
+        if r_pairwise:
+            r_pairwisestr=" with pair-wise chacoconn"
+            
         if newvoxmm <= 1:
             do_save_fullvol=True
-            do_save_fullconn=do_pairwise
+            do_save_fullconn=r_pairwise
             if rname:
                 origres_name=rname
-            print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d).' % (newvoxmm,volshape[0],volshape[1],volshape[2]))
+            print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d)%s.' % (newvoxmm,volshape[0],volshape[1],volshape[2],r_pairwisestr))
             continue
         
         Psparse, newvolshape, newrefimg = createSparseDownsampleParcellation(newvoxmm, origvoxmm, volshape, refimg)
         
-        Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname})
-        print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d).' % (newvoxmm,newvolshape[0],newvolshape[1],newvolshape[2]))
+        Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname, 'pairwise': r_pairwise})
+
+        print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d)%s.' % (newvoxmm,newvolshape[0],newvolshape[1],newvolshape[2],r_pairwisestr))
 
 if parcelfiles:
     for p in parcelfiles:
+        p_pairwise=do_pairwise
+        if p.find("?") >= 0:
+            #handle ?nopairwise option
+            p_opts=p.split("?")[1:]
+            p=p.split("?")[0]
+            if "nopairwise" in p_opts:
+                p_pairwise=False
         if p.find("=") >= 0:
             [pfile,pname]=p.split("=")
         else:
@@ -370,12 +390,16 @@ if parcelfiles:
             Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr")
             numroi = Psparse.shape[1]
             
-        Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname})
+        Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise})
+        
+        p_pairwisestr=""
+        if p_pairwise:
+            p_pairwisestr=" with pair-wise chacoconn"
         
         if isinstance(Psparse,list):
-            print('Output will include subject-specific parcellation %s (%s, total parcels = %d).' % (pname,pfile.split("/")[-1],numroi))
+            print('Output will include subject-specific parcellation %s (%s, total parcels = %d)%s.' % (pname,pfile.split("/")[-1],numroi,p_pairwisestr))
         else:
-            print('Output will include parcellation %s (%s, total parcels = %d).' % (pname,pfile.split("/")[-1],numroi))
+            print('Output will include parcellation %s (%s, total parcels = %d)%s.' % (pname,pfile.split("/")[-1],numroi,p_pairwisestr))
 
 #if parcelfiles_subject_specific:
 #    for p in parcelfiles_subject_specific:
@@ -844,7 +868,7 @@ if Psparse_list:
             "parcelindex":iparc, 
             "reshape": Psparse_list[iparc]['reshape'], 
             "voxmm": Psparse_list[iparc]['voxmm']})
-        if do_pairwise:
+        if Psparse_list[iparc]['pairwise']:
             chaco_output_list.append({"name":"chacoconn_%s" % (Psparse_list[iparc]['name']), 
                 "numerator": 'chacoconn_parc%05d_subj%%05d.npz' % (iparc), 
                 "denominator":'chacoconn_parc%05d_denom_subj%%05d.npz' % (iparc),
