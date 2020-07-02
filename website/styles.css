@@ -61,7 +61,7 @@ body {
 .versiondiv {
     font-size: 10pt; 
     text-align: right;
-    color: lightgray;
+    color: gray;
     padding-top: .5em;
 }
 .statusimage {
@@ -103,5 +103,8 @@ body {
     padding-top: 5pt;
     width: 100%;
     font-size: 10pt;
+    color: gray;
+}
+.gitlink {
     color: gray;
 }

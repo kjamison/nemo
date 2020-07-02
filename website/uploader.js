@@ -20,8 +20,8 @@ var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',descr
     'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
     'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (16 subcortical, no brainstem)'},
     'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (70 cortical) + aseg (14 subcortical, no brainstem) + SUIT (27 cerebellar)'},
-    'yeo7': {name: 'Yeo2011 7-networks', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
-    'yeo17': {name: 'Yeo2011 17-networks', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
+    'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
+    'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
 };
 
 var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels'},
@@ -198,10 +198,11 @@ function showUploader(run_internal_script) {
     }
     addOutput("res",null,true);
     
+    var gittxt=" [<a class='gitlink' href='https://github.com/kjamison/nemo' target='_blank'>github docs</a>]";
     //get version info
     if(document.URL.startsWith("file:///")){
         nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
-        document.getElementById('version').innerHTML="NeMo vLOCAL";
+        document.getElementById('version').innerHTML="NeMo vLOCAL"+gittxt;
     } else {
         jsonurl='config/nemo-version.json';
         let request = new XMLHttpRequest();
@@ -212,7 +213,7 @@ function showUploader(run_internal_script) {
 
         request.onload = function() {
             nemo_version_info=request.response;
-            document.getElementById('version').innerHTML="NeMo v"+nemo_version_info['nemo_version']+" - "+nemo_version_info['nemo_version_date'];
+            document.getElementById('version').innerHTML="NeMo v"+nemo_version_info['nemo_version']+" - "+nemo_version_info['nemo_version_date']+gittxt;
         }
     }
 }

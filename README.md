@@ -1,5 +1,5 @@
+![nemo_logo](website/images/logo_nemo_transparent_small.png)
 # NeMo 2.0 - Network Modification Tool
-
 Predict brain network disruption from a lesion mask. Original concept described in [Kuceyeski 2013](https://dx.doi.org/10.1089%2Fbrain.2013.0147).
 
 ## Workflow overview
@@ -84,19 +84,21 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 * This set of 420 7Mx5M sparse matrices can be used to compute ChaCo scores, but would require downloading the entire 700GB database every single time we run the tool. Instead, we divide the sparsemats into 10x10x10 voxel "chunks", where each chunk file contains the [420*1000 x 5M] sparse matrix of streamlines for all 420 subjects through that cube of MNI space. Thus, we only download the "chunks" that overlap the input mask to determine which streamlines intersect our lesion. 
 
 ## Parcellations
-* FreeSurfer86-subj: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
+* <code>FreeSurfer86-subj</code>: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
     * This atlas includes the 70 cortical DKT regions + 16 subcortical (excluding brain-stem)
     * For this atlas, each of the 420 HCP reference subjects has their own subject-specific parcellation that we use when assigning streamlines to ROIs
-* FreeSurferSUIT111-subj: 111-region atlas with 70 DKT cortical + 14 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
+* <code>FreeSurferSUIT111-subj</code>: 111-region atlas with 70 DKT cortical + 14 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
     * Like the FreeSurfer86, this is a subject-specific parcellation
-* FreeSurfer86-avg: Same regions as FreeSurfer86-subj but defined as a single group-level MNI volume 
+* <code>FreeSurfer86-avg</code>: Same regions as FreeSurfer86-subj but defined as a single group-level MNI volume 
     * Each subject parcellation was mode-dilated by 1mm, then we computed the mode across all subjects
-* AAL: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
-* CC200: 200-region whole-brain cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
-* CC400: 400-region (actually 392) cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
-* Shen268: 268-region cortical+subcortical atlas from [Shen 2013](https://pubmed.ncbi.nlm.nih.gov/23747961/)
-* Yeo 2011 7-networks: 7-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
-* Yeo 2011 17-networks: 17-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
-* Custom: Any 1mm MNI (182x218x182) parcellation volume
+* <code>AAL</code>: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
+* <code>CC200</code>: 200-region whole-brain cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
+* <code>CC400</code>: 400-region (actually 392) cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
+* <code>Shen268</code>: 268-region cortical+subcortical atlas from [Shen 2013](https://pubmed.ncbi.nlm.nih.gov/23747961/)
+* <code>Yeo7</code>: 7-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
+* <code>Yeo17</code>: 17-network CORTICAL-ONLY parcellation from [Yeo 2011](https://pubmed.ncbi.nlm.nih.gov/21653723/)
+* <code>Custom</code>: Any 1mm MNI (182x218x182) parcellation volume
     * Note: Pipeline only considers sequential ROI label values. For example, a parcellation containing only label values [10,20,30,40] will produce an 4x1 output, or a 4x4 output in pairwise mode
 * See files in [website/atlases/](website/atlases/)
+
+[![FS86](website/images/thumbnail_fs86.png)](website/images/thumbnail_fs86_large.png) [![FS111](website/images/thumbnail_fs111cereb.png)](website/images/thumbnail_fs111cereb_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)
