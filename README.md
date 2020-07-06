@@ -1,6 +1,6 @@
 ![nemo_logo](website/images/logo_nemo_transparent_small.png)
 # NeMo 2.0 - Network Modification Tool
-Predict brain network disruption from a lesion mask. Original concept described in [Kuceyeski 2013](https://dx.doi.org/10.1089%2Fbrain.2013.0147).
+Predict brain network disruption from a lesion mask. Original concept described in [Kuceyeski 2013](https://pubmed.ncbi.nlm.nih.gov/23855491/).
 
 ## Workflow overview
 
