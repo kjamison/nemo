@@ -23,6 +23,7 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 ## Input
 * **NOTE: All input volumes must already be transformed into 1mm MNI152 v6 space** (eg: using FSL's FNIRT or ANTs) 
     * 182x218x182 voxels (best) or 181x217x181 (this sometimes results if upsampling SPM 2mm output to 1mm)
+    * Volumes matching either of these 2 sizes are then nearest-neighbor interpolated to the MNI template to avoid any voxel ordering issues.
 * Lesion mask = NIfTI volume (*.nii.gz or *.nii)
 * Parcellation (optional) = NIfTI volume with labeled voxels (*.nii.gz or *.nii)
     * Note: Pipeline only considers sequential ROI label values. For example, a parcellation containing only label values [10,20,30,40] will produce an 4x1 output, or a 4x4 output in pairwise mode
@@ -85,13 +86,25 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 
 ## Parcellations
 * <code>FreeSurfer86-subj</code>: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
-    * This atlas includes the 70 cortical DKT regions + 16 subcortical (excluding brain-stem)
+    * This atlas includes the 68 cortical DKT regions + 18 subcortical (excluding brain-stem)
     * For this atlas, each of the 420 HCP reference subjects has their own subject-specific parcellation that we use when assigning streamlines to ROIs
-* <code>FreeSurferSUIT111-subj</code>: 111-region atlas with 70 DKT cortical + 14 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
-    * Like the FreeSurfer86, this is a subject-specific parcellation
-* <code>FreeSurfer86-avg</code>: Same regions as FreeSurfer86-subj but defined as a single group-level MNI volume 
+* <code>FreeSurferSUIT111-subj</code>: 111-region atlas with 68 DKT cortical + 16 aseg subcortical + 27 cerebellar subregions from the SUIT atlas [Diedrichsen 2009](https://pubmed.ncbi.nlm.nih.gov/19457380/)
+    * Like FreeSurfer86, this is a subject-specific parcellation. 
+    * SUIT ROIs are dilated and masked to fill all FreeSurfer cerebellum voxels
+* <code>CocoMMP438-subj</code>: 438-region atlas combining parts of several atlases:
+    * 358 cortical ROIs from the HCP multi-modal parcellation ([Glasser 2016](https://pubmed.ncbi.nlm.nih.gov/27437579/))
+    * 12 subcortical ROIs from aseg, adjusted by FSL's FIRST tool ([Patenaude 2011](https://pubmed.ncbi.nlm.nih.gov/21352927/))
+    * 30 thalamic nuclei from FreeSurfer7 [Iglesias 2018](https://pubmed.ncbi.nlm.nih.gov/30121337/) (50 nuclei merged down to 30 to remove the smallest nuclei, as with AAL3v1)
+    * 12 subcortical nuclei from AAL3v1 [Rolls 2020](https://pubmed.ncbi.nlm.nih.gov/31521825/) (VTA L/R, SN_pc L/R, SN_pr L/R, Red_N L/R, LC L/R, Raphe D/M)
+    * 26 cerebellar lobes from AAL3v1 (9 left, 9 right, 8 vermis)
+    * Like FreeSurfer86-subj, this is a subject-specific parcellation
+* <code>CocoMMPsuit439-subj</code>: 439-region atlas from CocoMMP438, but with 27 SUIT cerebellar subregions instead of 26 from AAL3v1
+    * Like FreeSurfer86, this is a subject-specific parcellation
+* <code>FreeSurfer86-avg</code>, <code>FreeSurferSUIT111-avg</code>, <code>CocoMMP438-avg</code>, <code>CocoMMPsuit439-avg</code>: Same regions as -subj but defined as a single group-level MNI volume 
     * Each subject parcellation was mode-dilated by 1mm, then we computed the mode across all subjects
 * <code>AAL</code>: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
+* <code>AAL3</code>: 170-region AAL3v1 atlas from [Rolls 2020](https://pubmed.ncbi.nlm.nih.gov/31521825/).
+    * Updated from AAL to include 30 high-resolution thalamic nuclei and 12 subcortical nuclei
 * <code>CC200</code>: 200-region whole-brain cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
 * <code>CC400</code>: 400-region (actually 392) cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
 * <code>Shen268</code>: 268-region cortical+subcortical atlas from [Shen 2013](https://pubmed.ncbi.nlm.nih.gov/23747961/)
@@ -101,4 +114,4 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     * Note: Pipeline only considers sequential ROI label values. For example, a parcellation containing only label values [10,20,30,40] will produce an 4x1 output, or a 4x4 output in pairwise mode
 * See files in [website/atlases/](website/atlases/)
 
-[![FS86](website/images/thumbnail_fs86.png)](website/images/thumbnail_fs86_large.png) [![FS111](website/images/thumbnail_fs111cereb.png)](website/images/thumbnail_fs111cereb_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)
+[![FS86](website/images/thumbnail_fs86.png)](website/images/thumbnail_fs86_large.png) [![FS111](website/images/thumbnail_fs111cereb.png)](website/images/thumbnail_fs111cereb_large.png) [![FS111](website/images/thumbnail_cocommp438.png)](website/images/thumbnail_cocommp438_large.png) [![FS111](website/images/thumbnail_cocommpsuit439.png)](website/images/thumbnail_cocommpsuit439_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![AAL3](website/images/thumbnail_aal3.png)](website/images/thumbnail_aal3_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)

@@ -72,7 +72,7 @@ def createSparseDownsampleParcellation(newvoxmm, origvoxmm, volshape, refimg):
 
     return Psparse, newvolshape, newrefimg
 
-def flatParcellationToTransform(Pflat, isubj=None, out_type="csr"):
+def flatParcellationToTransform(Pflat, isubj=None, out_type="csr", max_sequential_roi_value=None):
     if sparse.issparse(Pflat):
         Pdata=Pflat[isubj,:].toarray().flatten()
     elif isubj is None:
@@ -85,27 +85,32 @@ def flatParcellationToTransform(Pflat, isubj=None, out_type="csr"):
     uroi, uidx=np.unique(Pdata[Pdata!=0],return_inverse=True)
     numroi=len(uroi)
     
-    #this would create an entry at the actual ROI values, rather than just going through the sequential PRESENT value
-    #eg: for cc400 it would be a 7M x 400 array instead of 7M x 392
-    #   but for an arbitrary/custom input, where they left freesurfer values, this could make it in the thousands!
-    #uidx=(uroi[uidx]-1).astype(np.int64)
-    #numroi=max(uroi).astype(np.int64)
+    if max_sequential_roi_value is not None:
+        #this would create an entry at the actual ROI values, rather than just going through the sequential PRESENT value
+        #eg: for cc400 it would be a 7M x 400 array instead of 7M x 392
+        #   but for an arbitrary/custom input, where they left freesurfer values, this could make it in the thousands!
+        uidx=(uroi[uidx]-1).astype(np.int64)
+        numroi=max_sequential_roi_value.astype(np.int64)
     
     if out_type == "csr":
         return sparse.csr_matrix((np.ones(pmaskidx.size),(pmaskidx,uidx)),shape=(numvoxels,numroi),dtype=np.float32)
     elif out_type == "csc":
         return sparse.csc_matrix((np.ones(pmaskidx.size),(pmaskidx,uidx)),shape=(numvoxels,numroi),dtype=np.float32)
     
-def checkVolumeShape(Pdata, filename_display, expected_shape, expected_shape_spm):
-    if Pdata.shape == expected_shape:
+def checkVolumeShape(Pimg, refimg, filename_display, expected_shape, expected_shape_spm):
+    if Pimg.shape == expected_shape:
         #seems correct
-        pass
-    elif Pdata.shape == expected_shape_spm:
-        print('%s was 181x217x181, not the expected 182x218x181. Assuming SPM-based reg and padding end of each dim.' % (filename_display))
-        Pdata=np.pad(Pdata,(0,1),mode='constant')
+        #pass
+        #resample no matter in case there's some LPI vs RPI issue
+        Pimg=nibabel.processing.resample_from_to(Pimg,refimg,order=0)
+    elif Pimg.shape == expected_shape_spm:
+        #print('%s was 181x217x181, not the expected 182x218x181. Assuming SPM-based reg and padding end of each dim.' % (filename_display))
+        #Pdata=np.pad(Pdata,(0,1),mode='constant')
+        print('%s was 181x217x181, not the expected 182x218x181. Resampling to expected.' % (filename_display))
+        Pimg=nibabel.processing.resample_from_to(Pimg,refimg,order=0)
     else:
-        raise(Exception('Unexpected volume size: (%d,%d,%d) for %s. Input must be registered to 182x218x182 MNIv6 template (FSL template)' % (Pdata.shape[0],Pdata.shape[1],Pdata.shape[2],filename_display)))
-    return Pdata
+        raise(Exception('Unexpected volume size: (%d,%d,%d) for %s. Input must be registered to 182x218x182 MNIv6 template (FSL template)' % (Pimg.shape[0],Pimg.shape[1],Pimg.shape[2],filename_display)))
+    return Pimg
         
 parser=argparse.ArgumentParser(description='Read lesion mask and create voxel-wise ChaCo maps for all reference subjects')
 
@@ -281,15 +286,13 @@ refimg=nib.load(refimgfile)
 
 Limg=nib.load(lesionfile)
 
-Ldata=Limg.get_fdata()
-
-voxmm=np.sqrt(Limg.affine[:3,0].dot(Limg.affine[:3,0]))
-
 expected_shape=(182,218,182)
 expected_shape_spm=(181,217,181)
 
+Limg = checkVolumeShape(Limg, refimg, lesionfile.split("/")[-1], expected_shape, expected_shape_spm)
+Ldata=Limg.get_fdata()
 
-Ldata = checkVolumeShape(Ldata, lesionfile.split("/")[-1], expected_shape, expected_shape_spm)
+voxmm=np.sqrt(Limg.affine[:3,0].dot(Limg.affine[:3,0]))
 
 Ldata=Ldata/np.max(Ldata) #this will be useful if we do a continuous-valued version later
 if do_continuous:
@@ -361,9 +364,10 @@ if parcelfiles:
             Psparse_allsubj=sparse.load_npz(pfile)
             numroisubj=Psparse_allsubj.shape[0]
             
+            max_seq_roi_val=Psparse_allsubj.max()
             #store these as csc for memory efficiency (have to convert each subject later)
             def flat2sparse(isubj):
-                return flatParcellationToTransform(Psparse_allsubj, isubj, out_type="csc")
+                return flatParcellationToTransform(Psparse_allsubj, isubj, out_type="csc", max_sequential_roi_value=max_seq_roi_val)
             
             num_cpu=multiprocessing.cpu_count()
             multiproc_cores=num_cpu-1
@@ -383,10 +387,12 @@ if parcelfiles:
             numvoxels=Psparse[0].shape[0]
 
         else:
-            Pdata=nib.load(pfile).get_fdata()
+            #Pdata=nib.load(pfile).get_fdata()
+            #Pdata = checkVolumeShape(Pdata, pfile.split("/")[-1], expected_shape, expected_shape_spm)
+            Pimg=nib.load(pfile)
+            Pimg = checkVolumeShape(Pimg, refimg, pfile.split("/")[-1], expected_shape, expected_shape_spm)
+            Pdata=Pimg.get_fdata()
             
-            Pdata = checkVolumeShape(Pdata, pfile.split("/")[-1], expected_shape, expected_shape_spm)
-    
             Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr")
             numroi = Psparse.shape[1]
             
