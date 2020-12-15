@@ -150,11 +150,19 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
 function showUploader(run_internal_script) {
     if (run_internal_script === undefined) run_internal_script = false;
     extra_html='';
+    upload_note_html=['<div id="mninote" class="mninote">',
+        'You can upload a single NIfTI file, or a .zip file containing up to 10 NIfTI files.<br/>',
+        '</div>'].join('\n');
+    
     if(run_internal_script){
         extra_html+=['<label for="outputlocation">Copy to S3 location: s3://</label>',
         '<input id="outputlocation" type="text" size="50" value="kuceyeski-wcm-temp/kwj2001/nemo_output"><br/><br/>',
         '<label for="coco_password">Password:</label>',
         '<input id="coco_password" type="password" value=""><br/><br/>'].join('\n');
+        
+        upload_note_html=['<div id="mninote" class="mninote">',
+            'You can upload a single NIfTI file, or a .zip file containing multiple NIfTI files.<br/>',
+            '</div>'].join('\n');
     }
     
     if(document.URL.startsWith("file:///")){
@@ -164,11 +172,12 @@ function showUploader(run_internal_script) {
     var htmlTemplate = [
         '<label for="email">E-mail address:</label>',
         '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
-        '<label for="fileupload">MNI Lesion NIfTI file:</label>',
+        '<label for="fileupload">MNI Lesion NIfTI file (or .zip):</label>',
         '<div class="filediv">',
         '<input id="fileupload" type="file" accept=".gz,.nii,.zip" class="fileinfo">',
         '<label id="filesize" class="fileinfo"></label>',
         '</div><br/>',
+        upload_note_html,
         '<div id="mninote" class="mninote">',
         'Note: Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
         'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
