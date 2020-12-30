@@ -27,6 +27,7 @@ imgshape=None
 for i in imglist:
     img=nib.load(i)
     imgdata=img.get_fdata()
+    imgdata[np.isnan(imgdata)]=0
     if binarize:
         imgdata=(imgdata!=0).astype(np.float32)
     if avgdata is None:

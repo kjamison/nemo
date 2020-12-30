@@ -106,7 +106,7 @@ def checkVolumeShape(Pimg, refimg, filename_display, expected_shape, expected_sh
     elif Pimg.shape == expected_shape_spm:
         #print('%s was 181x217x181, not the expected 182x218x181. Assuming SPM-based reg and padding end of each dim.' % (filename_display))
         #Pdata=np.pad(Pdata,(0,1),mode='constant')
-        print('%s was 181x217x181, not the expected 182x218x181. Resampling to expected.' % (filename_display))
+        print('%s was 181x217x181, not the expected 182x218x182. Resampling to expected.' % (filename_display))
         Pimg=nibabel.processing.resample_from_to(Pimg,refimg,order=0)
     else:
         raise(Exception('Unexpected volume size: (%d,%d,%d) for %s. Input must be registered to 182x218x182 MNIv6 template (FSL template)' % (Pimg.shape[0],Pimg.shape[1],Pimg.shape[2],filename_display)))
@@ -291,6 +291,7 @@ expected_shape_spm=(181,217,181)
 
 Limg = checkVolumeShape(Limg, refimg, lesionfile.split("/")[-1], expected_shape, expected_shape_spm)
 Ldata=Limg.get_fdata()
+Ldata[np.isnan(Ldata)]=0 #make sure there aren't any nans that throw off mask creation
 
 voxmm=np.sqrt(Limg.affine[:3,0].dot(Limg.affine[:3,0]))
 
