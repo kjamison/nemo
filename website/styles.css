@@ -94,6 +94,13 @@ body {
 }
 .statustext_neutral {
     color: gray;
+    background-color: lightgray;
+    margin-top: 1em;
+    padding:.5em;
+}
+.statustext_blank {
+    color: gray;
+    background-color: none;
     margin-top: 1em;
     padding:.5em;
 }

@@ -97,7 +97,7 @@ function base64_encode(data){
     return btoa(str).replace(/.{76}(?=.)/g,'$&\n');
 }
 
-function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
+function checkBucketStatus(bucket, key, statusdiv, password_success_message, validation_success_message) {
     if(uploadTimer==null)
         return;
     uploadTimerCount++;
@@ -122,8 +122,10 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
             //console.log(tags);
 
             var statusimgdiv = document.getElementById("uploadstatusimage");
+            var email = document.getElementById("email").value;
             
             if (tags["input_checks"]=="success"){
+                successMessage(validation_success_message)
                 s3.getObject(s3params,function(err,file){
                     statusimgdiv.innerHTML="<div class='statusimage'>Input lesion mask</br><img src='data:image/png;base64," + base64_encode(file.Body)+"'></div>";
                 });
@@ -132,11 +134,11 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message) {
             } else if(tags["password_status"]=="error"){
                 errorMessage("Incorrect password!");
             } else if(tags["password_status"]=="success"){
-                successMessage(password_success_message);
+                neutralMessage(password_success_message);
                 if(uploadTimer != null)
                     clearInterval(uploadTimer);
                 uploadTimerCount=0;
-                uploadTimer = setInterval(function() {checkBucketStatus(bucket, key, statusdiv, password_success_message);}, uploadTimerInterval);
+                uploadTimer = setInterval(function() {checkBucketStatus(bucket, key, statusdiv, password_success_message, validation_success_message);}, uploadTimerInterval);
                 return;
             }
             if(uploadTimer != null)
@@ -251,7 +253,10 @@ function errorMessage(message,keep_buttons_disabled){
 }
 
 function neutralMessage(message,keep_buttons_disabled){
-    updateStatusMessage(message,"statustext_neutral",keep_buttons_disabled);
+    if(message)
+        updateStatusMessage(message,"statustext_neutral",keep_buttons_disabled);
+    else
+        updateStatusMessage(message,"statustext_blank",keep_buttons_disabled);
 }
 
 
@@ -624,13 +629,14 @@ function submitMask() {
             neutralMessage("Validating password...", true);
             timer_interval=passwordTimerInterval;
         } else {
-            successMessage("Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)")
+            neutralMessage("Uploaded successfully!<br/>Validating inputs may take a few minutes...")
             timer_interval=uploadTimerInterval;
         }
         if(uploadTimer == null){
             uploadTimerCount=0;
-            password_success_message="Uploaded successfully!<br/>Results with be emailed to "+email+" when complete (check spam box!)";
-            uploadTimer = setInterval(function() {checkBucketStatus(uploadBucketName, newKey, statusdiv, password_success_message);}, timer_interval);
+            password_success_message="Uploaded successfully!<br/>Validating inputs may take a few minutes...";
+            validation_success_message="Inputs validated!</br>Results with be emailed to "+email+" when complete (check spam box!)"
+            uploadTimer = setInterval(function() {checkBucketStatus(uploadBucketName, newKey, statusdiv, password_success_message, validation_success_message);}, timer_interval);
         } 
     },
     function(err) {

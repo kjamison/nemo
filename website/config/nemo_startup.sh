@@ -235,6 +235,7 @@ resolutionarg=""
 output_pairwiselist=""
 output_allreflist=""
 output_roilistfile=""
+parcfile_testsize_list=""
 
 for o in $(echo ${output_prefix_list} | tr "," " "); do
     
@@ -254,7 +255,13 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
             out_filename=$(basename ${out_filekey})
             out_filepath=${unzipdir}/${out_filename}
             aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filepath}
+            if [ "${do_debug}" != "true" ]; then
+                #delete custom uploaded parc file after downloading
+                aws s3 rm s3://${inputbucket}/${out_filekey}
+            fi
             parcarg_tmp="--parcelvol ${out_filepath}=${out_name}"
+            parcfile_testsize_list+=" ${out_filepath}"
+            
         else
             #need to search through available atlas files for the one specified by ${out_name}
             #and assign out_filename=atlases/thatfile.nii.gz
@@ -313,14 +320,41 @@ input_status_key=$(echo ${s3path} | sed -E 's#^[^/]+/##')${status_suffix}
 #password must have worked if we got this far (or it wasn't using a password)
 input_status_tagstring='password_status=success'
 
+input_check_status="success"
+
 imgsize=$(python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile}))
 if [ -e ${input_lesion_image} ]; then
-    input_status_tagstring+="&input_checks=success&imgshape=${imgsize}"
+    input_status_tagstring+="&imgshape=${imgsize}"
 else
-    echo "fail" > ${input_lesion_image}
-    input_status_tagstring+="&input_checks=error"
+    input_check_status="error"
+    failmessage="Input lesion masks are not all the same dimensions"
 fi
 
+parcfile_testsize_expected="182x218x182 181x217x181"
+for parctmp_file in ${parcfile_testsize_list}; do
+    parctmp_image=${unzipdir}/parctmp_image.png
+    parctmp_imgsize=$(python nemo_save_average_glassbrain.py --out ${parctmp_image} --colormap jet ${binarizearg} ${parctmp_file})
+    rm -f ${unzipdir}/parctmp_image.png
+    if [ -z "${parctmp_imgsize}" ]; then
+        input_check_status="error"
+        failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
+        break
+    else
+        parctmp_imgsize_isvalid=$(echo ${parcfile_testsize_expected} | tr " " "\n" | grep ${parctmp_imgsize} | wc -l | awk '{print $1}')
+        if [ "${parctmp_imgsize_isvalid}" != 1 ]; then
+            input_check_status="error"
+            failmessage="Invalid dimensions for custom parcellation: $(basename $parctmp_file)"
+            break
+        fi
+    fi
+done
+
+if [ ${input_check_status} = "success" ]; then
+    input_status_tagstring+="&input_checks=${input_check_status}"
+else
+    echo "fail" > ${input_lesion_image}
+    input_status_tagstring+="&input_checks=${input_check_status}"
+fi
 
 #aws s3 cp ${input_lesion_image} s3://${s3path}${status_suffix}
 
@@ -329,6 +363,15 @@ aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${
 #delete the input file from the s3 bucket
 if [ "${do_debug}" != "true" ]; then
     aws s3 rm s3://${s3path}
+fi
+
+if [ ${input_check_status} != "success" ]; then
+    #if we failed input checks, don't proceed
+    if [ "${do_debug}" != "true" ]; then
+        sudo shutdown -h now
+    else
+        exit 0
+    fi
 fi
 
 

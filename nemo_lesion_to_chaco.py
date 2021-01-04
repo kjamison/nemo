@@ -295,7 +295,12 @@ Ldata[np.isnan(Ldata)]=0 #make sure there aren't any nans that throw off mask cr
 
 voxmm=np.sqrt(Limg.affine[:3,0].dot(Limg.affine[:3,0]))
 
-Ldata=Ldata/np.max(Ldata) #this will be useful if we do a continuous-valued version later
+Ldata_max=np.max(np.abs(Ldata))
+if Ldata_max != 0:
+    Ldata=Ldata/Ldata_max #this will be useful if we do a continuous-valued version later
+else:
+    raise(Exception('Input lesion mask is all zeros!'))
+    
 if do_continuous:
     Lmask=Ldata.flatten().astype(np.float32)
 else:
@@ -388,8 +393,6 @@ if parcelfiles:
             numvoxels=Psparse[0].shape[0]
 
         else:
-            #Pdata=nib.load(pfile).get_fdata()
-            #Pdata = checkVolumeShape(Pdata, pfile.split("/")[-1], expected_shape, expected_shape_spm)
             Pimg=nib.load(pfile)
             Pimg = checkVolumeShape(Pimg, refimg, pfile.split("/")[-1], expected_shape, expected_shape_spm)
             Pdata=Pimg.get_fdata()
@@ -1001,7 +1004,7 @@ P.map(save_chaco_output,chaco_output_list)
 
 P.close()
 
-imglesion_mni=nib.Nifti1Image(Ldata>0,affine=refimg.affine, header=refimg.header)
+imglesion_mni=nib.Nifti1Image(Ldata!=0,affine=refimg.affine, header=refimg.header)
 imgfile_lesion=outputbase+'_glassbrain_lesion_orig.png'
 plotting.plot_glass_brain(imglesion_mni,output_file=imgfile_lesion,cmap='jet',colorbar=True)
 
@@ -1155,7 +1158,7 @@ plotting.plot_glass_brain(imgchaco_std,output_file=imgfile_std,colorbar=True)
 nib.save(imgchaco_std,outputbase+'_chaco_stdev.nii.gz')
 ###########
 
-imglesion_mni=nib.Nifti1Image(Ldata>0,affine=refimg.affine, header=refimg.header)
+imglesion_mni=nib.Nifti1Image(Ldata!=0,affine=refimg.affine, header=refimg.header)
 imgfile_lesion=outputbase+'_glassbrain_lesion_orig.png'
 plotting.plot_glass_brain(imglesion_mni,output_file=imgfile_lesion,cmap='jet',colorbar=True)
 
