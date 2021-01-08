@@ -54,15 +54,12 @@ status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' ${tagfi
 output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' ${tagfile} | head -n1)
 do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
 
-#parcellation:
-#provide a single nifti file, or a set of them?, or a name for one of our preset ones
-
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
 
 inputbucket=$(echo $s3path | awk -F/ '{print $1}')
 outputbucket=${inputbucket}
 
-inputfile_maxcount=10
+inputfile_maxcount=20
 unzipdir=
 
 
@@ -126,7 +123,8 @@ inputfile_count_orig=
 inputfile_count=
 if [ -d "${unzipdir}" ]; then
     #delete all but the first N files
-    find ${unzipdir}/ -type f | grep -iE '\.nii(\.gz)?$' | sort > ${inputfile_listfile}.tmp
+    #make sure we ignore any hidden system files that got zipped up
+    find ${unzipdir}/ -type f | grep -iE '\.nii(\.gz)?$' | grep -vE '(^\.|/\.|__MACOSX/)' | sort > ${inputfile_listfile}.tmp
     if [ "${inputfile_maxcount}" = "0" ]; then
         cp -f ${inputfile_listfile}.tmp ${inputfile_listfile}
     else
@@ -532,7 +530,10 @@ else
     
     outputkey_base=outputs/${origtimestamp}_${s3filename_noext}
     outputkey=${outputkey_base}/${outputfilename}
-    #aws s3 cp ${outputdir} s3://${outputbucket}/${outputkey}
+    
+    #we can't upload >5GB using aws s3api put-object, which is the only way to including tagging AND trigger lambda,
+    #so upload the output zip first, then we'll upload a dummy file later with tagging info 
+    aws s3 cp ${outputfilename}  s3://${outputbucket}/${outputkey}
     
 fi
 
@@ -540,9 +541,10 @@ fi
 jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstatus}" --arg origfilename "${origfilename}" \
     --arg inputfilecount "${inputfile_count}" --arg submittime "${origtimestamp_unix}" --arg successcount "${success_count}" \
     --arg inputfilecount_orig "${inputfile_count_orig}" --arg outputsize "${outputsize}" --arg outputsize_unzipped "${outputsize_unzipped}" \
+    --arg outputfile_key "${outputkey}" \
     '.+{email:$email, duration:$duration, status:$status, origfilename:$origfilename, inputfilecount:$inputfilecount,
     submittime:$submittime, successcount:$successcount, inputfilecount_orig:$inputfilecount_orig, outputsize:$outputsize,
-    outputsize_unzipped:$outputsize_unzipped
+    outputsize_unzipped:$outputsize_unzipped, outputfile_key:$outputfile_key
     }' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
 
 
@@ -553,8 +555,8 @@ else
 fi
 
 output_tagstring="email=${email}"
-aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
-
+#aws s3api put-object --bucket ${outputbucket} --key ${outputkey} --body ${outputfilename} --tagging ${output_tagstring}
+aws s3api put-object --bucket ${outputbucket} --key ${outputkey_base}/upload_trigger --body ${uploadjson} --tagging ${output_tagstring}
 
 #######################################
 #add final status, duration, and output path to updated log on s3

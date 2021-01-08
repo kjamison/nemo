@@ -373,6 +373,11 @@ def lambda_handler(raw_event, context):
                 [print(s) for s in outputfiles_list]
                 uploadinfo=s3tagdict
                             
+            if 'outputfile_key' in uploadinfo:
+                outputfile_key=uploadinfo['outputfile_key']
+            else:
+                outputfile_key=key
+            
             ##############################
             ziplist_string=""
             outputfile_ziplist_key=[r['Key'] for r in outputfiles_response['Contents'] if r['Key'].endswith("_ziplist.txt")]
@@ -383,18 +388,20 @@ def lambda_handler(raw_event, context):
                 print(f"Output ziplist ({ziplist_key}):\n{ziplist_string}")
             
             #generate a link that will expire in 1 week (maximum)
-            downloadurl=S3_as_user.generate_presigned_url(ClientMethod='get_object', Params={'Bucket':bucket,'Key':key}, ExpiresIn=OUTPUT_EXPIRATION_SECONDS)
-            downloadurl_unsigned="https://%s.s3.amazonaws.com/%s" % (bucket,key)
+            downloadurl=S3_as_user.generate_presigned_url(ClientMethod='get_object', Params={'Bucket':bucket,'Key':outputfile_key}, ExpiresIn=OUTPUT_EXPIRATION_SECONDS)
+            downloadurl_unsigned="https://%s.s3.amazonaws.com/%s" % (bucket,outputfile_key)
             duration_string=durationToString(float(uploadinfo['duration']))
             if 'outputsize' in uploadinfo:
                 downloadsize_string=uploadinfo['outputsize']
             else:
-                downloadsize_string=fileSizeString(int(record['s3']['object']['size']))
+                #downloadsize_string=fileSizeString(int(record['s3']['object']['size']))
+                #get the file size from outputfile_key instead
+                downloadsize_string=fileSizeString(int(S3.head_object(Bucket=bucket, Key=outputfile_key)["ContentLength"]))
                 
             if 'outputsize_unzipped' in uploadinfo and uploadinfo['outputsize_unzipped']:
                 downloadsize_string+=" ("+uploadinfo['outputsize_unzipped']+" unzipped)"
             
-            downloadfilename=key.split("/")[-1]
+            downloadfilename=outputfile_key.split("/")[-1]
             
             if 'resultlocation' in uploadinfo:
                 result_location=uploadinfo['resultlocation']
@@ -402,7 +409,6 @@ def lambda_handler(raw_event, context):
                 result_location=None
              
             #TODO: relay info about how many files were uploaded, selected, successfully processed
-            #TODO: include the SUBJECT LIST for 420 HCP subjects
             #TODO: may need to exclude some subjects still!
             
             #timestamp is unix epoch time with milliseconds, so make sure to divide those off
