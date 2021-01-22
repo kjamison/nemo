@@ -209,7 +209,8 @@ else
 fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
-outputbasefile=${origfilename_noext}_nemo_output_${tracking_algo}
+outputsuffix=nemo_output_${tracking_algo}
+outputbasefile=${origfilename_noext}_${outputsuffix}
 outputbase=${outputdir}/${outputbasefile}
 logfile=${outputbase}_${origtimestamp}_log.txt
 
@@ -396,7 +397,7 @@ finalstatus="success"
 success_count=0
 while read inputfile; do
     inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
-    outputbase_infile=${outputdir}/${inputfile_noext}_nemo_output${algostr}
+    outputbase_infile=${outputdir}/${inputfile_noext}_${outputsuffix}
     
     echo "##########################"  >> ${logfile}
     echo "# Processing " $(basename ${inputfile}) >> ${logfile}
