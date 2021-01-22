@@ -3,19 +3,27 @@
 
 subject=$1
 algostr=$2
+outputdir=$3
 
 set -e
 set -x
 
 if [ $USER = "ubuntu" ]; then
-	studydir=/home/ubuntu/mniwarp
+	#studydir=/home/ubuntu/mniwarp
 	scriptdir=/home/ubuntu
+    
+    export FSLDIR=$HOME/fsl
+    export FSLOUTPUTTYPE=NIFTI_GZ
+    export PATH=${FSLDIR}/bin:${PATH}
+    
+    export MRTRIXDIR=$HOME/mrtrix3
+    export PATH=${MRTRIXDIR}/bin:${PATH}
 else
-	studydir=$HOME/colossus_shared/HCP/mniwarptest
+	#studydir=$HOME/colossus_shared/HCP/mniwarptest
 	scriptdir=.
 fi
 #inputdir=$studydir/input_mrtrix_${subject}
-outputdir=$studydir/mnitracks_${subject}_${algostr}
+#outputdir=$studydir/mnitracks_${subject}_${algostr}
 #outputdir=$studydir/output_mrtrix_${subject}
 
 if [[ "$subject" == *_Retest ]]; then
@@ -109,6 +117,8 @@ tdifileMNInative=${tckfile/.tck/_MNI_tdi.nii.gz}
 tcktransform ${tckfile} mni2acpc_mrtrix_flip.nii.gz ${tckfileMNI} -force ${threadarg}
 tckmap ${tckfileMNI} ${tdifileMNInative} -template ${mnitarget} ${threadarg} -force ${threadarg}
 fslmaths ${mnitarget} -mul 0 -add ${tdifileMNInative} ${tdifileMNInative}
+
+rm -rf ${tckfile} ${regimg} acpc_dc2standard.nii.gz standard2acpc_dc.nii.gz mni2acpc_mrtrix_flip.nii.gz acpc2mni_mrtrix_flip.nii.gz
 
 #python ${scriptdir}/convert_mni_tck_to_sparsemat.py ${tckfile/.tck/""} ${mnitarget} ${tckfile/.tck/_MNI_sparsemat.mat}
 

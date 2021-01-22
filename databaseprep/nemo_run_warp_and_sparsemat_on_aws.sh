@@ -5,17 +5,20 @@ set -x
 
 subj=$1
 algo=$2
+mnitracksdir=$3
 
-studydir=/home/ubuntu/mniwarp
+#try to stop python/numpy from secretly using extra cores sometimes
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
 scriptdir=/home/ubuntu
 
-mkdir -p ${studydir}
-
-subjdir=${studydir}/mnitracks_${subj}_${algo}
+mkdir -p ${mnitracksdir}
+subjdir=${mnitracksdir}/mnitracks_${subj}_${algo}
 
 numtracks=5M
 
-bash ${scriptdir}/run_warp_tck_to_mni.sh $subj $algo
+bash ${scriptdir}/run_warp_tck_to_mni.sh $subj $algo ${subjdir}
 
 python ${scriptdir}/nemo_convert_mni_tck_to_sparsemat.py ${subjdir}/CSD_${algo}_${numtracks} ${subjdir}/MNI152_T1_1mm_brain_mask.nii.gz ${subjdir}/${subj}_${algo}_${numtracks}_MNI_sparsemat.mat
 
