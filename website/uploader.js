@@ -45,7 +45,7 @@ var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', descr
 };
 
 var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
-    'ifod2act': {text: 'Probabilistic (iFOD2+ACT)', default: true}
+    'ifod2act': {text: 'Probabilistic (iFOD2+ACT)',default: true}
 };
 
 AWS.config.update({
@@ -181,6 +181,7 @@ function showUploader(run_internal_script) {
     
     extra_algo_html=['<label for="tracking_algorithm_select">Tractography algorithm:</label>',
     getTrackingAlgoSelectHtml("tracking_algorithm_select"),
+    '<div class="algo_description">(See <a href="https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html"  target="_blank" rel="noopener noreferrer">MRtrix3 tckgen documentation</a>)</div>',
     '<br/><br/>'].join("\n");
     
     var htmlTemplate = [

@@ -54,6 +54,15 @@ body {
     margin-left: -2pt;
     margin-right: -2pt;
 }
+.algo_description {
+    display: inline;
+    font-size: 10pt;
+    color: gray;
+    padding-left: 10pt;
+}
+.algo_description a:link { color: gray; }
+.algo_description a:visited { color: gray; }
+
 .parcdiv_description {
     font-size: 10pt;
     color: gray;
