@@ -326,8 +326,16 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         }
         var seltext=myselect.options[myselect.options.selectedIndex].text;
-        allrefchecked="checked"
-        pairwisechecked="checked"
+        
+        //by default, only set "allref" for parcellations
+        if(parc_or_res=="parc")
+            allrefchecked="checked"
+        
+        //by default, only set "pairwise" for parcellations OR resolution>=3mm
+        if(parc_or_res=="parc")
+            pairwisechecked="checked"
+        else if(parc_or_res=="res" && selvalue>=3)
+            pairwisechecked="checked"
     }
     if(select_id)
         document.getElementById(select_id).selectedIndex=0;
