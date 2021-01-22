@@ -13,17 +13,20 @@ var nemo_version_info = null;
 var reslist=[];
 var parclist=[];
 
+//these atlases are deprecated since people should be using the -subj version anyway
+var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
+     'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
+     'cocommpsuit439avg': {name: 'CocoMMPsuit439-avg','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
+};
+
 var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
     'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'170-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)'},
     'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
     'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
     'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},
-    'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
     'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)'},
     'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)'},
-     'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
      'cocommp438subj': {name: 'CocoMMP438-subj','thumbnail':'images/thumbnail_cocommp438.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
-     'cocommpsuit439avg': {name: 'CocoMMPsuit439-avg','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
      'cocommpsuit439subj': {name: 'CocoMMPsuit439-subj','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
     'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
     'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
@@ -39,6 +42,10 @@ var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', descr
     '8': {name:'8 mm', thumbnail:'images/thumbnail_res8mm.png', description:'23x28x23 (14812 voxels), 4234 streamline endpoint voxels'},
     '9': {name:'9 mm', thumbnail:'images/thumbnail_res9mm.png', description:'21x25x21 (11025 voxels), 3054 streamline endpoint voxels'},
     '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels'}
+};
+
+var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
+    'ifod2act': {text: 'Probabilistic (iFOD2+ACT)', default: true}
 };
 
 AWS.config.update({
@@ -171,6 +178,11 @@ function showUploader(run_internal_script) {
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
     }
+    
+    extra_algo_html=['<label for="tracking_algorithm_select">Tractography algorithm:</label>',
+    getTrackingAlgoSelectHtml("tracking_algorithm_select"),
+    '<br/><br/>'].join("\n");
+    
     var htmlTemplate = [
         '<label for="email">E-mail address:</label>',
         '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
@@ -192,6 +204,7 @@ function showUploader(run_internal_script) {
         '<label for="siftweights">Weight streamlines by data fit (SIFT2)</label><br/>',
         '<input type="checkbox" id="smoothing" name="smoothing" value="1" checked>',
         '<label for="smoothing">Include smoothed mean images</label><br/><br/>',
+        extra_algo_html,
         '<label for="addres_select">Add output resolution:</label>',
         getResolutionSelectHtml("addres_select"),
         '<br/>',
@@ -260,6 +273,19 @@ function neutralMessage(message,keep_buttons_disabled){
 }
 
 
+function getTrackingAlgoSelectHtml(id){
+    htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
+    algonames=Object.keys(tracking_algo_info);
+    for(var i=0; i<algonames.length; i++){
+        selstr=""
+        if(tracking_algo_info[algonames[i]]['default']){
+            selstr=" selected"
+        }
+        htmlTemplate.push('<option value="'+algonames[i]+'"'+selstr+'>'+tracking_algo_info[algonames[i]]['text']+'</option>');
+    }
+    htmlTemplate.push('</select>');
+    return htmlTemplate.join("\n");
+}
 
 function getResolutionSelectHtml(id){
     htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'res\',\'addres_select\',false)">'];
@@ -420,6 +446,10 @@ function submitMask() {
     var cocopassword = document.getElementById("coco_password");
     var debug_input = document.getElementById("debug");
     
+    var tracking_algo = null
+    if(document.getElementById("tracking_algorithm_select"))
+        tracking_algo=document.getElementById("tracking_algorithm_select").value;
+    
     neutralMessage("...",true);
     document.getElementById("upload").disabled=true;
     statusimgdiv.innerHTML="";
@@ -559,8 +589,6 @@ function submitMask() {
     var newFileName=newTimestamp + "/" + uuidv4() + fileext;
     var newKey=uploadFolderKey + newFileName;
 
-    //var photoKey = albumPhotosKey + fileName;
-
     // Use S3 ManagedUpload class as it supports multipart uploads
 
     // Object can only have 10 tags! Only take 
@@ -572,6 +600,9 @@ function submitMask() {
     
     var config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
     config_taglist=config_taglist.concat([{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative}]);
+    
+    if (tracking_algo)
+        config_taglist=config_taglist.concat([{Key: 'tracking_algorithm', Value: tracking_algo}]);
     
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);

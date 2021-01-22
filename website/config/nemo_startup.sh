@@ -53,6 +53,8 @@ s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation
 status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' ${tagfile} | head -n1)
 output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' ${tagfile} | head -n1)
 do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
+tracking_algo=$(jq --raw-output 'select(.Key=="tracking_algorithm") | .Value' ${tagfile} | head -n1)
+do_continuous=$(jq --raw-output 'select(.Key=="continuous") | .Value' ${tagfile} | head -n1)
 
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
 
@@ -182,6 +184,17 @@ if [ "x${s3nemoroot}" != "x" ]; then
     s3arg="--s3nemoroot ${s3nemoroot}"
 fi
 
+    
+algostr=""
+
+if [ "${tracking_algo}" = "ifod2act" ] || [ "x${tracking_algo}" = "x" ] ; then
+    tracking_algo="ifod2act"
+    algostr=""
+elif [ "${tracking_algo}" = "sdstream" ]; then
+    algostr="_sdstream"
+else
+    algostr="_${tracking_algo}"
+fi
 
 ###########
 #### need some kind of input/dimension checking HERE, or a way to send log output to end user
@@ -196,7 +209,8 @@ else
 fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
-outputbase=${outputdir}/${origfilename_noext}_nemo_output
+outputbasefile=${origfilename_noext}_nemo_output_${tracking_algo}
+outputbase=${outputdir}/${outputbasefile}
 logfile=${outputbase}_${origtimestamp}_log.txt
 
 
@@ -377,27 +391,28 @@ fi
 
 ziplistfile=${outputdir}/output_ziplist.txt
 ziplistfile_bytes=${outputdir}/output_bytes_ziplist.txt
-    
+
 finalstatus="success"
 success_count=0
 while read inputfile; do
     inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
-    outputbase_infile=${outputdir}/${inputfile_noext}_nemo_output
+    outputbase_infile=${outputdir}/${inputfile_noext}_nemo_output${algostr}
     
     echo "##########################"  >> ${logfile}
     echo "# Processing " $(basename ${inputfile}) >> ${logfile}
     python nemo_lesion_to_chaco.py --lesion ${inputfile} \
         --outputbase ${outputbase_infile} \
-        --chunklist nemo_chunklist.npz \
-        --chunkdir chunkfiles \
+        --chunklist nemo${algostr}_chunklist.npz \
+        --chunkdir chunkfiles${algostr} \
         --refvol MNI152_T1_1mm_brain.nii.gz \
-        --endpoints nemo_endpoints.npy \
-        --asum nemo_Asum_endpoints.npz \
-        --asum_weighted nemo_Asum_weighted_endpoints.npz \
-        --asum_cumulative nemo_Asum_cumulative.npz \
-        --asum_weighted_cumulative nemo_Asum_weighted_cumulative.npz \
-        --trackweights nemo_siftweights.npy \
-        --tracklengths nemo_tracklengths.npy ${s3arg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
+        --endpoints nemo${algostr}_endpoints.npy \
+        --asum nemo${algostr}_Asum_endpoints.npz \
+        --asum_weighted nemo${algostr}_Asum_weighted_endpoints.npz \
+        --asum_cumulative nemo${algostr}_Asum_cumulative.npz \
+        --asum_weighted_cumulative nemo${algostr}_Asum_weighted_cumulative.npz \
+        --trackweights nemo${algostr}_siftweights.npy \
+        --tracklengths nemo${algostr}_tracklengths.npy \
+        --tracking_algorithm "${tracking_algo}" ${s3arg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
             ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
     
     #if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then
@@ -437,7 +452,7 @@ while read inputfile; do
         (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
         (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
         #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
-        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|.png)$' | xargs rm -f
+        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|.png|.json|_log.txt)$' | xargs rm -f
     fi
 done < ${inputfile_listfile}
 
@@ -473,7 +488,7 @@ for out_name in ${output_namelist}; do
 done
 
 #save subject list to file in output directory:
-python -c 'import numpy as np; chunklist=np.load("nemo_chunklist.npz"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
+python -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
 
 uploadjson=${outputbase}_upload_info.json
 echo "{}" > ${uploadjson}
@@ -504,7 +519,7 @@ if [ "${do_s3direct}"  = "1" ]; then
     #now copy files for email
     #(note: for the s3direct version, the filename isn't downloadable so it doesn't need to be .png or .zip or anything)
     #(It's just for tagging purposes, and forming the subject line in the email)
-    outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}
+    outputfilename=${outputbasefile}_${origtimestamp}
     outputkey_base=outputs/${origtimestamp}_${s3filename_noext}
     outputkey=${outputkey_base}/${outputfilename}
     
@@ -515,7 +530,7 @@ if [ "${do_s3direct}"  = "1" ]; then
     outputfilename=$(ls *.png | head -n1)
 else
     cd ${outputdir}
-    outputfilename=${origfilename_noext}_nemo_output_${origtimestamp}.zip
+    outputfilename=${outputbasefile}_${origtimestamp}.zip
     rm -f ${outputfilename}
     du -h --apparent-size * > ${ziplistfile}
     grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
@@ -562,8 +577,11 @@ aws s3api put-object --bucket ${outputbucket} --key ${outputkey_base}/upload_tri
 #add final status, duration, and output path to updated log on s3
 #(note: put quotes around each jq value in case they have spaces)
 finaljson=${output_config_file}_final.json
-output_expiration=$(aws s3api head-object --bucket ${outputbucket} --key ${outputkey} | jq --raw-output ".Expiration // empty" | sed -E 's#expiry-date=\"([^\"]+)\".+$#\1#')
+output_expiration=$(aws s3api head-object --bucket ${outputbucket} --key ${outputkey_base}/upload_trigger | jq --raw-output ".Expiration // empty" | sed -E 's#expiry-date=\"([^\"]+)\".+$#\1#')
 
+if [ "${do_s3direct}"  = "1" ]; then
+    output_expiration=""
+fi
 jq -s --arg s3result_expiration "${output_expiration}" '.[0]+.[1]+{s3result_expiration:$s3result_expiration}' ${output_config_file} ${uploadjson} > ${finaljson}
 
 aws s3 cp ${finaljson} ${output_config_s3file}

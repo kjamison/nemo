@@ -8,6 +8,7 @@ The general workflow for this tool consists of a database generation stage and a
 
 1. Tractography database generation: [databaseprep/](databaseprep/)
     1. Compute whole-brain tractogram streamlines for 420 unrelated healthy subjects from the [Human Connectome Project](http://www.humanconnectome.org) (See [hcp_subjects_unrelated420_scfc.txt](hcp_subjects_unrelated420_scfc.txt) for list)
+        * Both probabilistic (iFOD2+ACT) and deterministic (SD_STREAM) are available
     2. Nonlinearly warp streamlines into a common reference space (MNI152 v6, eg: <code>$FSLDIR/data/standard/MNI152_T1_1mm.nii.gz</code>, or [website/atlases/MNI152_T1_1mm_brain.nii.gz](website/atlases/MNI152_T1_1mm_brain.nii.gz))
         * See [run_warp_tck_to_mni.sh](databaseprep/run_warp_tck_to_mni.sh) and [nemo_convert_mni_tck_to_sparsemat.py](databaseprep/nemo_convert_mni_tck_to_sparsemat.py)
     3. Additional processing to facillitate efficient computation: [run_full_database_prep.sh](databaseprep/run_full_database_prep.sh)
@@ -65,6 +66,12 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     from scipy.io import savemat
     savemat("mylesion_chacovol_mean.mat",{"data": data})
     # (load in matlab with M=load("mylesion_chacovol_mean.mat"); data=M.data;)
+    
+    #to save one of the chacoconn*_allref.pkl files to matlab .mat:
+    data = pickle.load(open("mylesion_chacoconn_fs86subj_allref.pkl","rb"))
+    allref=np.stasck([x.toarray() for x in data], axis=2) #creates an 86x86x420 3D matrix
+    savemat("mylesion_chacoconn_fs86subj_allref.mat",{"allref":allref})
+    # (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref;)
     ```
 ## Website usage
 * Coming soon
@@ -77,6 +84,8 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     * [<code>5ttgen</code>](https://mrtrix.readthedocs.io/en/dev/reference/commands/5ttgen.html), [<code>dwi2response dhollander</code>](https://mrtrix.readthedocs.io/en/latest/reference/commands/dwi2response.html#dwi2response-dhollander), [<code>dwi2fod msmt\_csd</code>](https://mrtrix.readthedocs.io/en/latest/reference/commands/dwi2fod.html)
     * Probabilistic tractography with anatomical constraint (iFOD2+ACT) and dynamic seeding:
         * [<code>tckgen RF_wm_dhollander.mif tracts_ifod2act_5M.tck -algorithm iFOD2 -act 5TT.nii.gz -seed_dynamic RF_wm_dhollander.mif -cutoff 0.06 -maxlength 300 -select 5M</code>](https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html)
+    * Deterministic tractography (SD_STREAM) with dynamic seeding:
+        * [<code>tckgen RF_wm_dhollander.mif tracts_sdstream_5M.tck -algorithm SD_STREAM -seed_dynamic RF_wm_dhollander.mif -cutoff 0.06 -maxlength 300 -select 5M -downsample 3</code>](https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html)
     * 5 million streamlines per subject
     * Additionally estimate SIFT2 weights for each streamline to better match global tractography to observed diffusion images ([<code>tcksift2</code>](https://mrtrix.readthedocs.io/en/latest/reference/commands/tcksift2.html))
 * 3D streamline coordinates were then transformed into discretized 1mm MNI space
