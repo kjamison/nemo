@@ -13,6 +13,15 @@ var nemo_version_info = null;
 var reslist=[];
 var parclist=[];
 
+//set default states for allref and pairwise based on whether its a parcellation or mm resolution
+//For mm resolution, set a threshold where we only check the box when resolution>=THRESH  
+//eg: if thresh=3, do NOT check pairwise by default for res=1 or 2, but DO check pairwise
+//by default for res=3,4,5...
+var default_allref_parc=true
+var default_allref_res_thresh=Infinity
+var default_pairwise_parc=true
+var default_pairwise_res_thresh=3
+    
 //these atlases are deprecated since people should be using the -subj version anyway
 var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
      'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
@@ -316,6 +325,7 @@ function addOutput(parc_or_res, select_id, init1mm){
     neutralMessage(""); //clear previous messages
     var allrefchecked=""
     var pairwisechecked=""
+    
     if(init1mm){
         var selvalue="1";
         var seltext="1 mm";
@@ -328,14 +338,13 @@ function addOutput(parc_or_res, select_id, init1mm){
         var seltext=myselect.options[myselect.options.selectedIndex].text;
         
         //by default, only set "allref" for parcellations
-        if(parc_or_res=="parc")
-            allrefchecked="checked"
-        
-        //by default, only set "pairwise" for parcellations OR resolution>=3mm
-        if(parc_or_res=="parc")
-            pairwisechecked="checked"
-        else if(parc_or_res=="res" && selvalue>=3)
-            pairwisechecked="checked"
+        if(parc_or_res=="parc"){
+            if(default_allref_parc) allrefchecked="checked";
+            if(default_pairwise_parc) pairwisechecked="checked";
+        } else if(parc_or_res=="res"){
+            if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
+            if(selvalue>=default_pairwise_res_thresh) pairwisechecked="checked";
+        }
     }
     if(select_id)
         document.getElementById(select_id).selectedIndex=0;

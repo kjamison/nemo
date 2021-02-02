@@ -49,30 +49,71 @@ Additionally, we have created a user-friendly web interface to run this tool in 
 * <code>*.npz</code> are [SciPy sparse matrices](https://docs.scipy.org/doc/scipy/reference/sparse.html) that can be read using:
         <code>import numpy as np; from scipy import sparse; data = sparse.load\_npz("filename.npz")</code>
 * To convert outputs to another format, you will need to use Python:
-    ```
-    import pickle
-    import numpy as np
+<pre lang="python">
+#load chacovol_mean.pkl file and save as text/tsv/csv:
+import pickle
+import numpy as np
+data = pickle.load(open("mylesion_chacovol_mean.pkl","rb"))
+np.savetxt("mylesion_chacovol_mean.txt",data,delimiter="\t")
 
-    data = pickle.load(open("mylesion_chacovol_mean.pkl","rb"))
-    #save as text/tsv/csv
-    np.savetxt("mylesion_chacovol_mean.txt",data,delimiter="\t")
-    
-    #for sparse output files (eg: chacoconn, *_allref), need to convert 
-    # sparse->dense before saving txt but note this can create very large files
-    data = pickle.load(open("mylesion_chacoconn_mean.pkl","rb"))
-    np.savetxt("mylesion_chacoconn_mean.txt",data.toarray(),delimiter="\t")
-    
-    #save as matlab .mat file
-    from scipy.io import savemat
-    savemat("mylesion_chacovol_mean.mat",{"data": data})
-    # (load in matlab with M=load("mylesion_chacovol_mean.mat"); data=M.data;)
-    
-    #to save one of the chacoconn*_allref.pkl files to matlab .mat:
-    data = pickle.load(open("mylesion_chacoconn_fs86subj_allref.pkl","rb"))
-    allref=np.stasck([x.toarray() for x in data], axis=2) #creates an 86x86x420 3D matrix
-    savemat("mylesion_chacoconn_fs86subj_allref.mat",{"allref":allref})
-    # (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref;)
-    ```
+#or save as .mat
+from scipy.io import savemat
+savemat("mylesion_chacovol_mean.mat",{"data":data})
+# (load in matlab with M=load("mylesion_chacovol_mean.mat"); data=M.data;)
+</pre>
+
+<pre lang="python">
+#load chacoconn_mean.pkl file and save as text/tsv/csv:
+#NOTE: chacoconn files are *SPARSE* format and must be converted to *DENSE* before saving to text using data.toarray()
+import pickle
+import numpy as np
+data = pickle.load(open("mylesion_chacoconn_mean.pkl","rb"))
+np.savetxt("mylesion_chacoconn_mean.txt",data.toarray(),delimiter="\t")
+
+#or save dense/full matrix to matlab .mat:
+from scipy.io import savemat
+savemat("mylesion_chacoconn_mean.mat",{"data":data.toarray()})
+# (load in matlab with M=load("mylesion_chacoconn_mean.mat"); data=M.data;)
+
+#sparse chacoconn outputs *CAN* be saved as sparse format in .mat files *ONLY IF* you convert them to np.double:
+from scipy.io import savemat
+savemat("mylesion_chacoconn_mean_sparse.mat",{"data":data.astype(np.double)})
+# (load in matlab with M=load("mylesion_chacoconn_mean_sparse.mat"); data=M.data; or data=full(M.data); ... )
+</pre>
+
+<pre lang="python">
+#load chacovol_*_allref.pkl or chacovol_*_allref_denom.pkl files and save as matlab .mat:
+#These files contain SPARSE matrices, so we need to either convert them to dense:
+import pickle
+import numpy as np
+from scipy.io import savemat
+data = pickle.load(open("mylesion_chacovol_fs86subj_allref.pkl","rb"))
+savemat("mylesion_chacovol_fs86subj_allref.mat",{"allref":data.toarray()})
+# (load in matlab with M=load("mylesion_chacovol_fs86subj_allref.mat"); allref=M.allref;)
+
+#or save as sparse after converting to np.double:
+savemat("mylesion_chacovol_fs86subj_allref_sparse.mat",{"allref":data.astype(np.double)})
+# (load in matlab with M=load("mylesion_chacovol_fs86subj_allref.mat"); allref=M.allref; or allref=full(M.allref); ...)
+</pre>
+
+<pre lang="python">
+#load chacoconn_*_allref.pkl or chacoconn_*_allref_denom.pkl files and save as matlab .mat:
+#These files contain LISTS of SPARSE matrices, so we need to either
+#a) convert them all to dense and stack them into 3D:
+import pickle
+import numpy as np
+from scipy.io import savemat
+data = pickle.load(open("mylesion_chacoconn_fs86subj_allref.pkl","rb"))
+allref=np.stack([x.toarray() for x in data], axis=2) #creates an 86x86x420 3D matrix
+savemat("mylesion_chacoconn_fs86subj_allref.mat",{"allref":allref})
+# (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref;)
+
+#or b) save as a cell array of of sparse matrices to save space, but you MUST convert to np.double:
+allref=[x.astype(np.double) for x in data]
+savemat("mylesion_chacoconn_fs86subj_allref_sparse.mat",{"allref":allref})
+# (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref; allref_subj1=M.allref{1}; allref_subj1_full=full(M.allref{1}); ...)
+</pre>
+
 ## Website usage
 * Coming soon
 
