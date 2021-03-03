@@ -114,6 +114,45 @@ savemat("mylesion_chacoconn_fs86subj_allref_sparse.mat",{"allref":allref})
 # (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref; allref_subj1=M.allref{1}; allref_subj1_full=full(M.allref{1}); ...)
 </pre>
 
+<pre lang="python">
+#load chacoconn_resXmm_mean.pkl file for VOXEL-PAIRWISE output:
+#chacoconn_mean is a VOXELSxVOXELS pairwise matrix, where chacoconn_mean[i,:] represents 
+# a VOLUME of disconnectivity to from voxel i to all other voxels
+import pickle
+import numpy as np
+import nibabel as nib
+from nilearn import plotting
+
+#read the corresponding chacovol_resXmm_mean.nii.gz output which defines the output dimensions
+Vref = pickle.load("mylesion_chacovol_res5mm_mean.nii.gz")
+
+data = pickle.load(open("mylesion_chacoconn_res5mm_mean.pkl","rb"))
+
+#for this demonstration, find the voxel with the largest total disconnectivity, convert that row
+#of the chacoconn output to a volume, and visualize that volume
+data_sum=np.sum(data,axis=0)+np.sum(data,axis=1).T #data is upper triangular so we need to sum across both dimensions
+voxel_index=np.argmax(data_sum)
+newdata=data[voxel_index,:]+data[:,voxel_index].T
+Vnew=nib.Nifti1Image(np.reshape(newdata.toarray(),Vref.shape),affine=Vref.affine, header=Vref.header)
+
+#convert voxel index to coordinates we can include the position in the output filename
+voxel_ijk=np.unravel_index(voxel_index,Vref.shape) #convert to (i,j,k) coords
+voxel_xyz=(Vref.affine @ np.array(voxel_ijk+(1,)).T)[:3] #can also convert to x,y,z mm using Vref affine
+voxel_ijk_string="%d_%d_%d" % (voxel_ijk)
+
+#save glassbrain image of this volume using nilearn plotting tools
+plotting.plot_glass_brain(Vnew,output_file="mylesion_chacoconn_res5mm_voxel_%s.png" % (voxel_ijk_string),colorbar=True)
+
+#save volume as nii.gz so you can view it in nifti-viewing software (eg: fsleyes)
+nib.save(Vnew,"mylesion_chacoconn_res5mm_voxel_%s.nii.gz" % (voxel_ijk_string))
+
+#just for fun, save a second volume with JUST that seed voxel highlighted so we can overlay it later
+cursordata=np.zeros(data.shape[0])
+cursordata[voxel_index]=1
+Vcursor=nib.Nifti1Image(np.reshape(cursordata,Vref.shape),affine=Vref.affine, header=Vref.header)
+nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk_string))
+</pre>
+
 ## Website usage
 * Coming soon
 
