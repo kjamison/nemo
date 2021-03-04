@@ -2,7 +2,16 @@
 # NeMo 2.0 - Network Modification Tool
 Predict brain network disruption from a lesion mask. Original concept described in [Kuceyeski 2013](https://pubmed.ncbi.nlm.nih.gov/23855491/).
 
-## Workflow overview
+# Contents
+1. [Workflow overview](#workflow-overview)
+2. [Inputs](#inputs)
+3. [Outputs](#outputs)
+    1. [Code examples for parsing outputs](#code-examples-for-parsing-outputs)
+4. [Website usage](#website-usage)
+5. [Details of tractography database](#details-of-tractography-database)
+6. [Parcellations](#parcellations)
+
+# Workflow overview
 
 The general workflow for this tool consists of a database generation stage and a lesion disconnectivity stage:
 
@@ -16,12 +25,12 @@ The general workflow for this tool consists of a database generation stage and a
     1. Given a lesion mask, identify all streamlines it intersects, and identify the endpoints of those streamlines to compute brain regions for which we expect a reduction of connectivity
     2. Compute ChaCo (Change in Connectivity) score, which is the ratio of (disrupted streamlines)/(total streamlines) for each voxel or ROI (chacovol), or voxel/ROI pair (chacoconn). **0=no disconnection. 1=complete disconnection**
 
-Additionally, we have created a user-friendly web interface to run this tool in the cloud (AWS):
+We have created a user-friendly web interface to run this tool in the cloud (AWS):
 * Main web GUI code in [uploader.js](website/uploader.js)
 * Uploading via this website triggers an AWS Lambda event, which executes [s3-lambda.py](website/config/s3-lambda.py) to launch an AWS EC2 instance
 * On the EC2 instance, [nemo_startup.sh](website/config/nemo_startup.sh) manages the entire input/output workflow, and uploads the results to S3, triggering a second AWS Lambda event in [s3-lambda.py](website/config/s3-lambda.py) that emails the user a link to the results
 
-## Input
+# Inputs
 * **NOTE: All input volumes must already be transformed into 1mm MNI152 v6 space** (eg: using FSL's FNIRT or ANTs) 
     * 182x218x182 voxels (best) or 181x217x181 (this sometimes results if upsampling SPM 2mm output to 1mm)
     * Volumes matching either of these 2 sizes are then nearest-neighbor interpolated to the MNI template to avoid any voxel ordering issues.
@@ -32,7 +41,7 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     * e.g., For a single very extensive lesion mask, <code>chacovol\_allref</code> can be as large as 700MB, and <code>chacoconn\_allref</code> can be 10s of GB
 * Currently, this package treats the lesion volume as a binary mask (0 = healthy tissue, <0 or >0 = tissue damage)
     
-## Output
+# Outputs
 * <code>chacovol</code> = voxelwise or regionwise ChaCo ratio
 * <code>chacoconn</code> = pairwise ChaCo ratio of loss of connections between pairs of voxels and/or ROIs
     * Note: for parcellations, these will be upper triangular. For voxelwise (including downsampled), this is not guaranteed
@@ -48,12 +57,15 @@ Additionally, we have created a user-friendly web interface to run this tool in 
     <code>import pickle; data = pickle.load(open("filename.pkl","rb"))</code>
 * <code>*.npz</code> are [SciPy sparse matrices](https://docs.scipy.org/doc/scipy/reference/sparse.html) that can be read using:
         <code>import numpy as np; from scipy import sparse; data = sparse.load\_npz("filename.npz")</code>
-* To convert outputs to another format, you will need to use Python:
+* To convert outputs to another format, you will need to use Python. See examples below.
+
+# Code examples for parsing outputs
+### Load chacovol\_mean.pkl file and save as text/tsv/csv
 <pre lang="python">
-#load chacovol_mean.pkl file and save as text/tsv/csv:
 import pickle
 import numpy as np
 data = pickle.load(open("mylesion_chacovol_mean.pkl","rb"))
+#data contains a single ROIxROI matrix
 np.savetxt("mylesion_chacovol_mean.txt",data,delimiter="\t")
 
 #or save as .mat
@@ -62,8 +74,8 @@ savemat("mylesion_chacovol_mean.mat",{"data":data})
 # (load in matlab with M=load("mylesion_chacovol_mean.mat"); data=M.data;)
 </pre>
 
+### Load chacoconn\_mean.pkl file and save as text/tsv/csv
 <pre lang="python">
-#load chacoconn_mean.pkl file and save as text/tsv/csv:
 #NOTE: chacoconn files are *SPARSE* format and must be converted to *DENSE* before saving to text using data.toarray()
 import pickle
 import numpy as np
@@ -81,8 +93,8 @@ savemat("mylesion_chacoconn_mean_sparse.mat",{"data":data.astype(np.double)})
 # (load in matlab with M=load("mylesion_chacoconn_mean_sparse.mat"); data=M.data; or data=full(M.data); ... )
 </pre>
 
+### Load chacovol\_\*\_allref.pkl or chacovol\_\*\_allref\_denom.pkl files and save as matlab .mat
 <pre lang="python">
-#load chacovol_*_allref.pkl or chacovol_*_allref_denom.pkl files and save as matlab .mat:
 #These files contain SPARSE matrices, so we need to either convert them to dense:
 import pickle
 import numpy as np
@@ -96,8 +108,8 @@ savemat("mylesion_chacovol_fs86subj_allref_sparse.mat",{"allref":data.astype(np.
 # (load in matlab with M=load("mylesion_chacovol_fs86subj_allref.mat"); allref=M.allref; or allref=full(M.allref); ...)
 </pre>
 
+### Load chacoconn\_\*\_allref.pkl or chacoconn\_\*\_allref\_denom.pkl files and save as matlab .mat
 <pre lang="python">
-#load chacoconn_*_allref.pkl or chacoconn_*_allref_denom.pkl files and save as matlab .mat:
 #These files contain LISTS of SPARSE matrices, so we need to either
 #a) convert them all to dense and stack them into 3D:
 import pickle
@@ -114,8 +126,8 @@ savemat("mylesion_chacoconn_fs86subj_allref_sparse.mat",{"allref":allref})
 # (load in matlab with M=load("mylesion_chacoconn_fs86subj_allref.mat"); allref=M.allref; allref_subj1=M.allref{1}; allref_subj1_full=full(M.allref{1}); ...)
 </pre>
 
+### Load chacoconn\_resXmm\_mean.pkl file for VOXEL-PAIRWISE output
 <pre lang="python">
-#load chacoconn_resXmm_mean.pkl file for VOXEL-PAIRWISE output:
 #chacoconn_mean is a VOXELSxVOXELS pairwise matrix, where chacoconn_mean[i,:] represents 
 # a VOLUME of disconnectivity to from voxel i to all other voxels
 import pickle
@@ -153,10 +165,10 @@ Vcursor=nib.Nifti1Image(np.reshape(cursordata,Vref.shape),affine=Vref.affine, he
 nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk_string))
 </pre>
 
-## Website usage
+# Website usage
 * Coming soon
 
-## Details of tractography database
+# Details of tractography database
 * Anatomical and diffusion data preprocessed by HCP using [Minimal Processing Pipeline](https://github.com/Washington-University/HCPpipelines) ([Glasser 2013](https://doi.org/10.1016/j.neuroimage.2013.04.127))
     * 3T diffusion MRI collected at 1.25mm resolution, 3 shells (b=1000,2000,3000), 90 directions per shell (See: [HCP 3T Protocol](https://protocols.humanconnectome.org/HCP/3T/imaging-protocols.html))
     * Gradient nonlinearity correction, EPI distortion correction, eddy current correction, motion correction, rigid-body registration to subject anatomy
@@ -173,7 +185,7 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
     * Round (x,y,z) coordinates to the nearest integer, and for each subject create a (7M voxels)x(5M streamlines) binary sparse matrix describing which of the 7M voxels (182\*218\*182=7,221,032) each of the 5M streamlines passes through
 * This set of 420 7Mx5M sparse matrices can be used to compute ChaCo scores, but would require downloading the entire 700GB database every single time we run the tool. Instead, we divide the sparsemats into 10x10x10 voxel "chunks", where each chunk file contains the [420*1000 x 5M] sparse matrix of streamlines for all 420 subjects through that cube of MNI space. Thus, we only download the "chunks" that overlap the input mask to determine which streamlines intersect our lesion. 
 
-## Parcellations
+# Parcellations
 * <code>FreeSurfer86-subj</code>: 86-region FreeSurfer Desikan-Killiany (DKT) cortical atlas with "aseg" subcortical regions(ie: aparc+aseg.nii.gz) [Desikan 2006](https://pubmed.ncbi.nlm.nih.gov/16530430/), [Fischl 2002](https://pubmed.ncbi.nlm.nih.gov/11832223/)
     * This atlas includes the 68 cortical DKT regions + 18 subcortical (excluding brain-stem)
     * For this atlas, each of the 420 HCP reference subjects has their own subject-specific parcellation that we use when assigning streamlines to ROIs
