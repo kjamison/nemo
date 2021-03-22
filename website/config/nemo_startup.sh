@@ -422,6 +422,12 @@ while read inputfile; do
         #output file is missing! what happened? 
         #sudo shutdown -h now
         #exit 1
+        #depending on where we encountered an error, the temporary directory
+        #for this input file may not have been removed
+        subjtempdir=$(ls -d ${outputbase_infile}_tmp*/ 2>/dev/null)
+        if [ -d "${subjtempdir}" ]; then
+            rm -rf ${subjtempdir}
+        fi
         finalstatus="error"
     else
         success_count=$((success_count+1))
