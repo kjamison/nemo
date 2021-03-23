@@ -8,8 +8,9 @@ Predict brain network disruption from a lesion mask. Original concept described 
 3. [Outputs](#outputs)
     1. [Code examples for parsing outputs](#code-examples-for-parsing-outputs)
 4. [Website usage](#website-usage)
-5. [Details of tractography database](#details-of-tractography-database)
-6. [Parcellations](#parcellations)
+5. [Requirements](#requirements)
+6. [Details of tractography database](#details-of-tractography-database)
+7. [Parcellations](#parcellations)
 
 # Workflow overview
 
@@ -136,7 +137,7 @@ import nibabel as nib
 from nilearn import plotting
 
 #read the corresponding chacovol_resXmm_mean.nii.gz output which defines the output dimensions
-Vref = pickle.load("mylesion_chacovol_res5mm_mean.nii.gz")
+Vref = nib.load("mylesion_chacovol_res5mm_mean.nii.gz")
 
 data = pickle.load(open("mylesion_chacoconn_res5mm_mean.pkl","rb"))
 
@@ -167,6 +168,14 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
 
 # Website usage
 * Coming soon
+
+# Requirements
+* No software is required to submit lesion masks through our web interface. To process outputs or to run portions of this this pipeline on your own, you will need the following:
+    * Python 3.6+
+    * NumPy
+    * SciPy
+    * NiBabel
+    * Nilearn >= 0.6.0 (needed mainly for visualization)
 
 # Details of tractography database
 * Anatomical and diffusion data preprocessed by HCP using [Minimal Processing Pipeline](https://github.com/Washington-University/HCPpipelines) ([Glasser 2013](https://doi.org/10.1016/j.neuroimage.2013.04.127))
@@ -204,7 +213,7 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
 * <code>FreeSurfer86-avg</code>, <code>FreeSurferSUIT111-avg</code>, <code>CocoMMP438-avg</code>, <code>CocoMMPsuit439-avg</code>: Same regions as -subj but defined as a single group-level MNI volume 
     * Each subject parcellation was mode-dilated by 1mm, then we computed the mode across all subjects
 * <code>AAL</code>: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
-* <code>AAL3</code>: 170-region AAL3v1 atlas from [Rolls 2020](https://pubmed.ncbi.nlm.nih.gov/31521825/).
+* <code>AAL3</code>: 166-region AAL3v1 atlas from [Rolls 2020](https://pubmed.ncbi.nlm.nih.gov/31521825/).
     * Updated from AAL to include 30 high-resolution thalamic nuclei and 12 subcortical nuclei
 * <code>CC200</code>: 200-region whole-brain cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)
 * <code>CC400</code>: 400-region (actually 392) cortical+subcortical parcellation from [Craddock 2012](https://pubmed.ncbi.nlm.nih.gov/21769991/)

@@ -29,7 +29,7 @@ var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/
 };
 
 var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
-    'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'170-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)'},
+    'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'166-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)'},
     'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
     'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
     'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},

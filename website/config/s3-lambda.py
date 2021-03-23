@@ -147,6 +147,7 @@ def sendCompletionEmail(useremail, duration_string, filesize_string, downloadurl
   %s
   <p>Output file size is %s. Job submitted at %s and processing took %s</p>
   %s
+  <p>Please visit our <a href="https://github.com/kjamison/nemo#code-examples-for-parsing-outputs">github</a> documentation for more information about output files and example scripts for converting or manipulating outputs.</p>
   <hr/><h2>Output summary:</h2>%s%s
 </body>
 </html>
