@@ -346,6 +346,10 @@ def lambda_handler(raw_event, context):
                 elif re.match('.+chaco(vol_.+)?_mean\.png',outputimg_name[i]):
                     newlabel='ChaCo mean'
                     newindex=1
+                elif re.match('.+chacoconn_.+_mean\.png',outputimg_name[i]):
+                    newlabel='mean(pairwise ChaCo)'
+                    newindex=3
+                    
                 elif re.match('.+lesion_orig_listmean\.png',outputimg_name[i]):
                     newlabel='listmean(Input lesion masks)'
                     newindex=0
@@ -355,7 +359,10 @@ def lambda_handler(raw_event, context):
                 elif re.match('.+chaco(vol_.+)?_listmean\.png',outputimg_name[i]):
                     newlabel='listmean(ChaCo mean)'
                     newindex=1
-
+                elif re.match('.+chacoconn_.+_listmean\.png',outputimg_name[i]):
+                    newlabel='listmean(pairwise ChaCo)'
+                    newindex=3
+                    
                 if newindex >= 0:
                     newurl=S3_as_user.generate_presigned_url(ClientMethod='get_object', Params={'Bucket':bucket,'Key':outputimg_key[i]}, ExpiresIn=OUTPUT_EXPIRATION_SECONDS)
                     outputimg_list.append({'name':outputimg_name[i], 'key':outputimg_key[i], 'label': newlabel, 'index': newindex, 'url': newurl})

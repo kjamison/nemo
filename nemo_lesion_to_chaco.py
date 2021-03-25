@@ -7,6 +7,7 @@ import nibabel.processing
 import time
 import sys
 from scipy import sparse
+from matplotlib import pyplot as plt
 from nilearn import plotting, image
 from scipy import ndimage
 import argparse 
@@ -363,6 +364,32 @@ def map_to_endpoints_conn(isubj):
 
 ###########################################################
 
+def parcellation_to_volume(parcdata, parcvol):
+    parcmask=parcvol!=0
+    uparc,uparc_idx=np.unique(parcvol[parcmask],return_inverse=True)
+    
+    if parcdata.shape[0] == len(uparc):
+        pass
+    elif parcdata.shape[1] == len(uparc):
+        parcdata=parcdata.T
+    else:
+        print("Parcellated data dimensions do not match parcellation")
+        return None
+    
+    newvol=np.zeros(parcvol.shape)
+    newvol[parcmask]=np.mean(parcdata[uparc_idx],axis=1)
+    
+    return newvol
+    
+def make_triangular_matrix_symmetric(m):
+    has_triu=np.any(np.triu(m!=0,1))
+    has_tril=np.any(np.tril(m!=0,-1))
+    if has_triu and not has_tril:
+        m+=np.triu(m,1).T
+    elif has_tril and not has_triu:
+        m+=np.tril(m,-1).T
+    return m
+
 def save_chaco_output(chaco_output):   
     #externals: Psparse_list, HACK_NUMBER_OF_SUBJECTS, tmpdir, Asum, Aconnsum, do_debug, outputbase, 
 #for chaco_output in chaco_output_list:
@@ -457,7 +484,40 @@ def save_chaco_output(chaco_output):
         #print(chacostd)
         pickle.dump(chacomean, open(outputbase+'_'+chaco_output['name']+'_mean.pkl', "wb"))
         pickle.dump(chacostd, open(outputbase+'_'+chaco_output['name']+'_stdev.pkl', "wb"))
-    
+        if chaco_output['displayvol'] is not None:
+            parcimg=chaco_output['displayvol']
+            newvol=parcellation_to_volume(chacomean, parcimg.get_fdata())
+            outimg=nib.Nifti1Image(newvol,affine=parcimg.affine, header=parcimg.header)
+            imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
+            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
+            
+            newvol=parcellation_to_volume(chacostd, parcimg.get_fdata())
+            outimg=nib.Nifti1Image(newvol,affine=parcimg.affine, header=parcimg.header)
+            imgfile=outputbase+'_glassbrain_%s_stdev.png' % (chaco_output['name'])
+            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
+        
+        MAX_CONNMATRIX_DISPLAY=1000
+        if 'pairwise' in chaco_output and chaco_output['pairwise'] and max(chacomean.shape) <= MAX_CONNMATRIX_DISPLAY:
+            fig=plt.figure()
+            ax=plt.imshow(make_triangular_matrix_symmetric(chacomean.toarray()),cmap='hot')
+            plt.xlabel('ROI')
+            plt.ylabel('ROI')
+            fig.colorbar(ax)
+            plt.title("%s_mean" % (chaco_output['name']))
+            imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
+            fig.savefig(imgfile)
+            plt.close()
+            
+            fig=plt.figure()
+            ax=plt.imshow(make_triangular_matrix_symmetric(chacostd.toarray()),cmap='hot')
+            plt.xlabel('ROI')
+            plt.ylabel('ROI')
+            fig.colorbar(ax)
+            plt.title("%s_stdev" % (chaco_output['name']))
+            imgfile=outputbase+'_glassbrain_%s_stdev.png' % (chaco_output['name'])
+            fig.savefig(imgfile)
+            plt.close()
+            
     else:
         outimg=nib.Nifti1Image(np.reshape(np.array(chacomean),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
         imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
@@ -675,19 +735,23 @@ if __name__ == "__main__":
         
             Psparse, newvolshape, newrefimg = createSparseDownsampleParcellation(newvoxmm, origvoxmm, volshape, refimg)
         
-            Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname, 'pairwise': r_pairwise})
+            Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname, 'pairwise': r_pairwise, 'displayvol': None})
             
             print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d)%s.' % (newvoxmm,newvolshape[0],newvolshape[1],newvolshape[2],r_pairwisestr))
     
     if parcelfiles:
         for p in parcelfiles:
             p_pairwise=do_pairwise
+            p_displayvol=None
             if p.find("?") >= 0:
                 #handle ?nopairwise option
                 p_opts=p.split("?")[1:]
                 p=p.split("?")[0]
                 if "nopairwise" in p_opts:
                     p_pairwise=False
+                if any([x.startswith("displayvol=") for x in p_opts]):
+                    displayvolfile=[x.split("=")[1] for x in p_opts if x.startswith("displayvol=")][0]
+                    p_displayvol=nib.load(displayvolfile)
             if p.find("=") >= 0:
                 [pfile,pname]=p.split("=")
             else:
@@ -729,7 +793,8 @@ if __name__ == "__main__":
                 Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr")
                 numroi = Psparse.shape[1]
             
-            Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise})
+            
+            Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise, 'displayvol': p_displayvol})
         
             p_pairwisestr=""
             if p_pairwise:
@@ -1024,7 +1089,7 @@ if __name__ == "__main__":
         chaco_output_list.append({"name":"chacoconn_%s" % (origres_name), 
             "numerator":'chacoconn_subj%05d.npz', 
             "denominator": 'chacoconn_denom_subj%05d.npz', 
-            "parcelindex":None, "reshape": None})
+            "parcelindex":None, "reshape": None, "displayvol": None})
     
     if Psparse_list:
         for iparc in range(len(Psparse_list)):
@@ -1033,12 +1098,13 @@ if __name__ == "__main__":
                 "denominator":'Asum',
                 "parcelindex":iparc, 
                 "reshape": Psparse_list[iparc]['reshape'], 
-                "voxmm": Psparse_list[iparc]['voxmm']})
+                "voxmm": Psparse_list[iparc]['voxmm'],
+                "displayvol": Psparse_list[iparc]['displayvol']})
             if Psparse_list[iparc]['pairwise']:
                 chaco_output_list.append({"name":"chacoconn_%s" % (Psparse_list[iparc]['name']), 
                     "numerator": 'chacoconn_parc%05d_subj%%05d.npz' % (iparc), 
                     "denominator":'chacoconn_parc%05d_denom_subj%%05d.npz' % (iparc),
-                    "parcelindex":iparc, "reshape": None})
+                    "parcelindex":iparc, "reshape": None, "displayvol": None, "pairwise": True})
     
     
     #chaco_output_list=[chaco_output_list[0]]

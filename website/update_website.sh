@@ -20,6 +20,7 @@ function randupload {
 
 aws s3 cp ${SCRIPTDIR}/../nemo_lesion_to_chaco.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_glassbrain.py s3://${WEBSITE_S3}/nemo_scripts/
+aws s3 cp ${SCRIPTDIR}/../nemo_save_average_matrix_figure.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 sync ${SCRIPTDIR}/config s3://${WEBSITE_S3}/config
 
 #aws s3 sync ${SCRIPTDIR}/atlases s3://${WEBSITE_S3}/nemo_atlases

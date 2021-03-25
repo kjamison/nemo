@@ -99,7 +99,7 @@ case ${s3lower} in
         #exit 1
         unzipdir=${HOME}/nemo_unzip_${s3filename_noext}
         mkdir -p ${unzipdir}
-        (cd ${unzipdir} && unzip -j ${HOME}/${s3filename})
+        (cd ${unzipdir} && unzip -jo ${HOME}/${s3filename})
         ;;
     *.tar)
         inputtype="tar"
@@ -203,9 +203,18 @@ fi
 if [ "${do_debug}" != "true" ]; then
     aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
     aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_matrix_figure.py ${NEMODIR}/
 else
-    #aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+    #in debug mode, only copy updated scripts if they weren't already available
+    if [ ! -e ${NEMODIR}/nemo_lesion_to_chaco.py ]; then
+        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
+    fi
+    if [ ! -e ${NEMODIR}/nemo_save_average_glassbrain.py ]; then
+        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
+    fi
+    if [ ! -e ${NEMODIR}/nemo_save_average_matrix_figure.py ]; then
+        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_matrix_figure.py ${NEMODIR}/
+    fi
 fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
@@ -240,7 +249,15 @@ atlasdir=$HOME/nemo_atlases
 atlaslistfile=${atlasdir}/atlas_list.csv
 
 #aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz"
-aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz"
+aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz" --exclude "atlas_list.csv"
+if [ "${do_debug}" != "true" ]; then
+    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.csv ${atlasdir}/
+else
+    #in debug mode, only copy atlas_list if it wasn't already available
+    if [ ! -e ${atlasdir}/atlas_list.csv ]; then
+        aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.csv ${atlasdir}/
+    fi
+fi
 
 pairwisearg=""
 parcelarg=""
@@ -248,12 +265,14 @@ resolutionarg=""
 output_pairwiselist=""
 output_allreflist=""
 output_roilistfile=""
+output_displayvollist=""
 parcfile_testsize_list=""
 
 for o in $(echo ${output_prefix_list} | tr "," " "); do
     
     #file containing ROI definitions
     out_roilistfile="x"
+    out_filename_displayvol="x"
     
     if [[ $o == addparc* ]]; then
         out_type="parc"
@@ -263,7 +282,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         
         out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
-
+        
+        #only used for subject-specific parcellations
+        out_filename_displayvol=
+        
         if [ "x${out_filekey}" != "x" ]; then
             out_filename=$(basename ${out_filekey})
             out_filepath=${unzipdir}/${out_filename}
@@ -285,15 +307,30 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 echo "Atlas not found: ${out_name}"
                 exit 1
             fi
-            out_filename=${atlasdir}/$(echo $atlasline | awk -F, '{print $2}')
+            
+            out_filename=$(echo $atlasline | awk -F, '{print $2}')
+            #subject-specific files have an extra entry for the display volume
+            out_filename_displayvol=$(echo $atlasline | awk -F, '{print $4}')
+            
+            out_filename=${atlasdir}/${out_filename}
+            if [ "x${out_filename_displayvol}" != x ]; then
+                out_filename_displayvol=${atlasdir}/${out_filename_displayvol}
+            fi
             
             if [ ! -e ${out_filename} ]; then
                 #so we don't have to copy the giant subject-specific files unless we need them
                 #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
                 aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
             fi
+            if [ "x${out_filename_displayvol}" != x ] && [ ! -e ${out_filename_displayvol} ]; then
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_displayvol}) ${out_filename_displayvol}
+            fi
+            
             out_roilistfile=${atlasdir}/$(echo $atlasline | awk -F, '{print $3}')
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
+        fi
+        if [ -e "${out_filename_displayvol}" ]; then
+            parcarg_tmp+="?displayvol=${out_filename_displayvol}"
         fi
         if [ ${out_pairwise} = "false" ]; then
             parcarg_tmp+="?nopairwise"
@@ -318,10 +355,16 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     if [ "${out_pairwise}" = "true" ]; then
         pairwisearg="--pairwise"
     fi
+    if [ "x${out_filename_displayvol}" = x ]; then
+        #make sure we have something to append to the list
+        out_filename_displayvol="x"
+    fi
+    
     output_namelist+=" ${out_name}"
     output_pairwiselist+=" ${out_pairwise}"
     output_allreflist+=" ${out_allref}"
     output_roilistfile+=" ${out_roilistfile}"
+    output_displayvollist+=" ${out_filename_displayvol}"
 done
 #remember: pairwise should be set to "--pairwise" if ANY output asks for it
 
@@ -422,15 +465,16 @@ while read inputfile; do
         #output file is missing! what happened? 
         #sudo shutdown -h now
         #exit 1
-        #depending on where we encountered an error, the temporary directory
-        #for this input file may not have been removed
-        subjtempdir=$(ls -d ${outputbase_infile}_tmp*/ 2>/dev/null)
-        if [ -d "${subjtempdir}" ]; then
-            rm -rf ${subjtempdir}
-        fi
         finalstatus="error"
     else
         success_count=$((success_count+1))
+    fi
+    
+    #depending on where we encountered an error, the temporary directory
+    #for this input file may not have been removed
+    subjtempdir=$(ls -d ${outputbase_infile}_tmp*/ 2>/dev/null)
+    if [ -d "${subjtempdir}" ]; then
+        rm -rf ${subjtempdir}
     fi
     
     o=0
@@ -459,7 +503,7 @@ while read inputfile; do
         (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
         (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
         #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
-        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|.png|.json|_log.txt)$' | xargs rm -f
+        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|_log.txt)$' | xargs rm -f
     fi
 done < ${inputfile_listfile}
 
@@ -479,6 +523,31 @@ if [ "${success_count}" -gt "1" ]; then
             fi
             python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
         fi
+    done
+    
+    #save listmean image for chacoconn matrices
+    for out_name in ${output_namelist}; do
+        outfile_meanlist=$(ls ${outputdir}/*_chacoconn_${out_name}_mean.pkl 2>/dev/null)
+        if [ "x${outfile_meanlist}" = "x" ]; then
+            continue
+        fi
+        python nemo_save_average_matrix_figure.py --title "chacoconn_${out_name}_listmean" --colormap hot --out ${outputdir}/${origfilename_noext}_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
+    done
+    
+    #save listmean image for the parcellated chacovol
+    o=0
+    for out_name in ${output_namelist}; do
+        o=$((o+1))
+        out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
+        if [ "${out_filename_displayvol}" = "x" ] || [ ! -e "${out_filename_displayvol}" ]; then
+            continue
+        fi
+        outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.pkl 2>/dev/null)
+        if [ "x${outfile_meanlist}" = "x" ]; then
+            continue
+        fi
+        
+        python nemo_save_average_glassbrain.py  --parcellation ${out_filename_displayvol} --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
     done
 fi
 
