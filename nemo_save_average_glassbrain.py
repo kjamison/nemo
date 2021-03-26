@@ -9,11 +9,13 @@ import pickle
 def argument_parse(argv):
     parser=argparse.ArgumentParser(description='Save a glassbrain image for an input volume or average or multiple input volumes')
     
-    parser.add_argument('--out','-o',action='store', dest='outfile', required=True,help='output image file (eg: glassbrain.png)')
+    parser.add_argument('--out','-o',action='store', dest='outfile', help='output image file (eg: glassbrain.png)')
     parser.add_argument('--cmap','--colormap','-c',action='store', dest='colormap',help='matplotlib colormap name (eg: jet,hot,...). Default: cold_white_hot')
     parser.add_argument('volumefile',nargs='*',action='store',help='one or more input volumes (eg: .nii files)')
     parser.add_argument('--binarize','-b',action='store_true',help='Binarize each input volume (!=0)')
     parser.add_argument('--parcellation','-p',dest='parcellation',help='Parcellation to fill')
+    parser.add_argument('--maxpercentile',action='store',type=float,help='colormap maximum')
+    parser.add_argument('--maxscale',action='store',type=float,help='colormap maximum')
     
     args=parser.parse_args(argv)
     
@@ -40,7 +42,28 @@ def load_input(inputfile):
     if sparse.issparse(imgdata):
         imgdata=imgdata.toarray()
     return imgdata
-        
+
+def average_input_list(inputlist, binarize=False):
+    avgdata=None
+    imgshape=None
+    
+    for i in inputlist:
+        imgdata=load_input(i)
+        imgdata[np.isnan(imgdata)]=0
+        if binarize:
+            imgdata=(imgdata!=0).astype(np.float32)
+        if avgdata is None:
+            avgdata=imgdata
+            imgshape=imgdata.shape
+        else:
+            if imgshape != imgdata.shape:
+                return None, None
+            avgdata+=imgdata
+    
+    avgdata/=len(inputlist)
+    
+    return avgdata, imgshape
+
 def parcellation_to_volume(parcdata, parcvol):
     parcmask=parcvol!=0
     uparc,uparc_idx=np.unique(parcvol[parcmask],return_inverse=True)
@@ -58,41 +81,35 @@ def parcellation_to_volume(parcdata, parcvol):
     
     return newvol
 
-def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None):
-    avgdata=None
-    imgshape=None
+def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None, maxpercentile=None, maxscale=None):
+    avgdata, imgshape = average_input_list(inputlist, binarize=binarize)
+    
+    if outputfile is None:
+        #for some scripts, we just want to use this python code to check that volume sizes are consistent
+        return imgshape
 
-    for i in inputlist:
-        imgdata=load_input(i)
-        imgdata[np.isnan(imgdata)]=0
-        if binarize:
-            imgdata=(imgdata!=0).astype(np.float32)
-        if avgdata is None:
-            avgdata=imgdata
-            imgshape=imgdata.shape
-        else:
-            if imgshape != imgdata.shape:
-                return None
-            avgdata+=imgdata
-    
-    avgdata/=len(inputlist)
-    
     if parcellation_file is None:
         refimg=nib.load(inputlist[0])
     else:
         refimg=nib.load(parcellation_file)
         parcvol=refimg.get_fdata()
         avgdata=parcellation_to_volume(avgdata,parcvol)
-    
-    
+
+    vmax=None
+    if maxscale is not None:
+        vmax=maxscale*np.max(avgdata)
+    elif maxpercentile is not None:
+        vmax=np.percentile(avgdata,maxpercentile)
+
     imgavg=nib.Nifti1Image(avgdata,affine=refimg.affine, header=refimg.header)
-    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True)
-    
+    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,vmax=vmax)
+
     return imgshape
 
 if __name__ == "__main__":
     args=argument_parse(sys.argv[1:])
-    imgshape=save_glassbrain(args.outfile,args.volumefile,args.binarize,args.colormap,args.parcellation)
+    imgshape=save_glassbrain(args.outfile,args.volumefile,binarize=args.binarize,colormap=args.colormap,
+        parcellation_file=args.parcellation,maxpercentile=args.maxpercentile,maxscale=args.maxscale)
     if imgshape is None:
         #mismatched input sizes
         sys.exit(1)

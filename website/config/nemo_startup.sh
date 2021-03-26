@@ -197,24 +197,22 @@ else
 fi
 
 ###########
-#### need some kind of input/dimension checking HERE, or a way to send log output to end user
 
-#copy latest version of the lesion script
+#copy latest version of the lesion scripts
+scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py 
+    nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py"
+
 if [ "${do_debug}" != "true" ]; then
-    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
-    aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_matrix_figure.py ${NEMODIR}/
+    for f in $scriptfiles; do
+        aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/
+    done
 else
     #in debug mode, only copy updated scripts if they weren't already available
-    if [ ! -e ${NEMODIR}/nemo_lesion_to_chaco.py ]; then
-        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_lesion_to_chaco.py ${NEMODIR}/
-    fi
-    if [ ! -e ${NEMODIR}/nemo_save_average_glassbrain.py ]; then
-        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_glassbrain.py ${NEMODIR}/
-    fi
-    if [ ! -e ${NEMODIR}/nemo_save_average_matrix_figure.py ]; then
-        aws s3 cp s3://${config_bucket}/nemo_scripts/nemo_save_average_matrix_figure.py ${NEMODIR}/
-    fi
+    for f in $scriptfiles; do
+        if [ ! -e ${NEMODIR}/${f} ]; then
+            aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/
+        fi
+    done
 fi
 
 outputdir=${HOME}/nemo_output_${s3filename_noext}
@@ -285,22 +283,22 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         
         #only used for subject-specific parcellations
         out_filename_displayvol=
+        out_filename=
         
         if [ "x${out_filekey}" != "x" ]; then
-            out_filename=$(basename ${out_filekey})
-            out_filepath=${unzipdir}/${out_filename}
-            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filepath}
+            out_filebasename=$(basename ${out_filekey})
+            out_filename=${atlasdir}/${out_filebasename}
+            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename}
             if [ "${do_debug}" != "true" ]; then
                 #delete custom uploaded parc file after downloading
                 aws s3 rm s3://${inputbucket}/${out_filekey}
             fi
-            parcarg_tmp="--parcelvol ${out_filepath}=${out_name}"
-            parcfile_testsize_list+=" ${out_filepath}"
-            
+            parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
+            parcfile_testsize_list+=" ${out_filename}"
         else
             #need to search through available atlas files for the one specified by ${out_name}
             #and assign out_filename=atlases/thatfile.nii.gz
-
+            
             out_lowername=$(echo ${out_name} | tr "[A-Z]" "[a-z]")
             atlasline=$(grep -E "^${out_lowername}," ${atlaslistfile})
             if [ "x${atlasline}" = "x" ]; then
@@ -331,12 +329,15 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         fi
         if [ -e "${out_filename_displayvol}" ]; then
             parcarg_tmp+="?displayvol=${out_filename_displayvol}"
+        else
+            #if there was no specified displayvol, use the parcellation volume in this list for saving figures later
+            out_filename_displayvol=${out_filename}
         fi
         if [ ${out_pairwise} = "false" ]; then
             parcarg_tmp+="?nopairwise"
         fi
         parcelarg+=" ${parcarg_tmp}"
-
+        
     elif  [[ $o == addres* ]]; then
         out_type="res"
         #_res,_allref,_pairwise
@@ -388,9 +389,7 @@ fi
 
 parcfile_testsize_expected="182x218x182 181x217x181"
 for parctmp_file in ${parcfile_testsize_list}; do
-    parctmp_image=${unzipdir}/parctmp_image.png
-    parctmp_imgsize=$(python nemo_save_average_glassbrain.py --out ${parctmp_image} --colormap jet ${binarizearg} ${parctmp_file})
-    rm -f ${unzipdir}/parctmp_image.png
+    parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap jet ${binarizearg} ${parctmp_file})
     if [ -z "${parctmp_imgsize}" ]; then
         input_check_status="error"
         failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
@@ -412,8 +411,8 @@ else
     input_status_tagstring+="&input_checks=${input_check_status}"
 fi
 
+#copy lesion glassbrain image back to input bucket so web interface can show the result
 #aws s3 cp ${input_lesion_image} s3://${s3path}${status_suffix}
-
 aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${input_lesion_image} --tagging ${input_status_tagstring}
 
 #delete the input file from the s3 bucket
@@ -477,6 +476,75 @@ while read inputfile; do
         rm -rf ${subjtempdir}
     fi
     
+    #save the "modified" SC for a subject with this lesion
+    o=0
+    for out_name in ${output_namelist}; do
+        o=$((o+1))
+        out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+        outfile_allref=${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+        outfile_denom=${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
+        if [ "${out_pairwise}" = "false" ] || [ ! -e "${outfile_allref}" ] || [ ! -e "${outfile_denom}" ]; then
+            continue;
+        fi
+        
+        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC_mean.mat
+        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC_stdev.mat
+        python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
+    done
+    
+    #generate glassbrain/matrix/graphbrain figures for all outputs for this lesion mask
+    o=0
+    for out_name in ${output_namelist}; do
+        o=$((o+1))
+        
+        # save glassbrain chacovols for normal volumetric outputs
+        outfile=${outputbase_infile}_chacovol_${out_name}_mean.nii.gz
+        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+
+        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.nii.gz
+        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+        
+        # save glassbrain chacovols for normal volumetric outputs (smoothed versions)
+        outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_mean.nii.gz 2> /dev/null | head -n1)
+        if [ -e "${outfile}" ]; then
+            smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
+            python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_mean.png ${outfile}
+        fi
+        
+        outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_stdev.nii.gz 2> /dev/null | head -n1)
+        if [ -e "${outfile}" ]; then
+            smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
+            python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_stdev.png ${outfile}
+        fi
+        
+        # save matrix figures for chacoconn outputs
+        outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_mean.png --colormap hot ${outfile} 
+        
+        outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_stdev.png --colormap hot ${outfile} 
+        
+        ############
+        #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
+        out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
+        if [ "${out_filename_displayvol}" = "x" ] || [ ! -e "${out_filename_displayvol}" ]; then
+            continue
+        fi
+        
+        outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+        
+        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+        
+        #for regionwise chacoconn, save glassbrain/graphbrain
+        outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_mean.png ${outfile} 
+        
+        outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+        [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_stdev.png ${outfile} 
+    done
+    
     o=0
     for out_name in ${output_namelist}; do
         o=$((o+1))
@@ -503,7 +571,7 @@ while read inputfile; do
         (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
         (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
         #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
-        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|_log.txt)$' | xargs rm -f
+        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
     fi
 done < ${inputfile_listfile}
 
@@ -525,29 +593,31 @@ if [ "${success_count}" -gt "1" ]; then
         fi
     done
     
-    #save listmean image for chacoconn matrices
+    #save listmean matrices, glassbrains, graphbrains for parcellated data
+    o=0
     for out_name in ${output_namelist}; do
+        o=$((o+1))
         outfile_meanlist=$(ls ${outputdir}/*_chacoconn_${out_name}_mean.pkl 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        python nemo_save_average_matrix_figure.py --title "chacoconn_${out_name}_listmean" --colormap hot --out ${outputdir}/${origfilename_noext}_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
-    done
-    
-    #save listmean image for the parcellated chacovol
-    o=0
-    for out_name in ${output_namelist}; do
-        o=$((o+1))
+        python nemo_save_average_matrix_figure.py --title "chacoconn_${out_name}_listmean" --colormap hot --out ${outputdir}/${origfilename_noext}_matrix_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
+        
+        #now save the listmean parcellated chacoconn (same outfiles as matrices)
         out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
         if [ "${out_filename_displayvol}" = "x" ] || [ ! -e "${out_filename_displayvol}" ]; then
             continue
         fi
+        
+        python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputdir}/${origfilename_noext}_graphbrain_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
+
+        #now save the listmean parcellated chacovol (same outfiles as matrices)
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.pkl 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        
         python nemo_save_average_glassbrain.py  --parcellation ${out_filename_displayvol} --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
+        
     done
 fi
 

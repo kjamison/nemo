@@ -5,7 +5,7 @@ import pickle
 from matplotlib import pyplot as plt
 from scipy import sparse
 
-def argument_parse(argv):
+def argument_parse_savematrixfig(argv):
     parser=argparse.ArgumentParser(description='Save a matrix image for an input chacoconn or average or multiple input chacoconns')
     
     parser.add_argument('--out','-o',action='store', dest='outfile', required=True,help='output image file (eg: chacoconn.png)')
@@ -24,7 +24,7 @@ def argument_parse(argv):
     
     return args
 
-def makesym(m):
+def make_triangular_matrix_symmetric(m):
     has_triu=np.any(np.triu(m!=0,1))
     has_tril=np.any(np.tril(m!=0,-1))
     if has_triu and not has_tril:
@@ -41,13 +41,13 @@ def load_input(inputfile,sym=False):
     if sparse.issparse(imgdata):
         imgdata=imgdata.toarray()
     if len(imgdata.shape)==2 and imgdata.shape[0]==imgdata.shape[1]:
-        imgdata=makesym(imgdata)
+        imgdata=make_triangular_matrix_symmetric(imgdata)
     return imgdata
 
-def save_matrix_fig(outputfile, inputlist, colormap="hot",title=None,sym=False,maxsize=None):
+def average_input_matrices(inputlist,sym=False,maxsize=None):
     avgdata=None
     imgshape=None
-
+    
     for i in inputlist:
         imgdata=load_input(i,sym)
         imgdata[np.isnan(imgdata)]=0
@@ -66,6 +66,13 @@ def save_matrix_fig(outputfile, inputlist, colormap="hot",title=None,sym=False,m
     
     avgdata/=len(inputlist)
     
+    return avgdata, imgshape
+
+def save_matrix_fig(outputfile, inputlist, colormap=None,title=None,sym=False,maxsize=None):
+    avgdata,imgshape = average_input_matrices(inputlist,sym=sym,maxsize=maxsize)
+    
+    if colormap is None:
+        colormap="hot"
     fig=plt.figure()
     ax=plt.imshow(avgdata,cmap=colormap)
     plt.xlabel('ROI')
@@ -79,8 +86,8 @@ def save_matrix_fig(outputfile, inputlist, colormap="hot",title=None,sym=False,m
     return imgshape
 
 if __name__ == "__main__":
-    args=argument_parse(sys.argv[1:])
-    imgshape=save_matrix_fig(args.outfile,args.connfile,args.colormap,args.title,args.sym,args.maxsize)
+    args=argument_parse_savematrixfig(sys.argv[1:])
+    imgshape=save_matrix_fig(outputfile=args.outfile,inputlist=args.connfile,colormap=args.colormap,title=args.title,sym=args.sym,maxsize=args.maxsize)
     if imgshape is None:
         #mismatched input sizes
         sys.exit(1)

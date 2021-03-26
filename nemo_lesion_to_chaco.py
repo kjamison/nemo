@@ -477,56 +477,13 @@ def save_chaco_output(chaco_output):
     pickle.dump(chaco_denom_allsubj,open(outfile_pickle,"wb"))
     
     if output_reshape is None:
-            
-        #sparse.save_npz(tmpdir+'/'+chaco_output['name']+'_mean.npz',chacomean,compressed=False)
-        #sparse.save_npz(tmpdir+'/'+chaco_output['name']+'_stdev.npz',chacostd,compressed=False)
-        #print(chacomean)
-        #print(chacostd)
         pickle.dump(chacomean, open(outputbase+'_'+chaco_output['name']+'_mean.pkl', "wb"))
         pickle.dump(chacostd, open(outputbase+'_'+chaco_output['name']+'_stdev.pkl', "wb"))
-        if chaco_output['displayvol'] is not None:
-            parcimg=chaco_output['displayvol']
-            newvol=parcellation_to_volume(chacomean, parcimg.get_fdata())
-            outimg=nib.Nifti1Image(newvol,affine=parcimg.affine, header=parcimg.header)
-            imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
-            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
-            
-            newvol=parcellation_to_volume(chacostd, parcimg.get_fdata())
-            outimg=nib.Nifti1Image(newvol,affine=parcimg.affine, header=parcimg.header)
-            imgfile=outputbase+'_glassbrain_%s_stdev.png' % (chaco_output['name'])
-            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
-        
-        MAX_CONNMATRIX_DISPLAY=1000
-        if 'pairwise' in chaco_output and chaco_output['pairwise'] and max(chacomean.shape) <= MAX_CONNMATRIX_DISPLAY:
-            fig=plt.figure()
-            ax=plt.imshow(make_triangular_matrix_symmetric(chacomean.toarray()),cmap='hot')
-            plt.xlabel('ROI')
-            plt.ylabel('ROI')
-            fig.colorbar(ax)
-            plt.title("%s_mean" % (chaco_output['name']))
-            imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
-            fig.savefig(imgfile)
-            plt.close()
-            
-            fig=plt.figure()
-            ax=plt.imshow(make_triangular_matrix_symmetric(chacostd.toarray()),cmap='hot')
-            plt.xlabel('ROI')
-            plt.ylabel('ROI')
-            fig.colorbar(ax)
-            plt.title("%s_stdev" % (chaco_output['name']))
-            imgfile=outputbase+'_glassbrain_%s_stdev.png' % (chaco_output['name'])
-            fig.savefig(imgfile)
-            plt.close()
-            
     else:
         outimg=nib.Nifti1Image(np.reshape(np.array(chacomean),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
-        imgfile=outputbase+'_glassbrain_%s_mean.png' % (chaco_output['name'])
-        plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
         nib.save(outimg,outputbase+'_%s_mean.nii.gz' % (chaco_output['name']))
         
         outimg=nib.Nifti1Image(np.reshape(np.array(chacostd),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
-        imgfile=outputbase+'_glassbrain_%s_stdev.png' % (chaco_output['name'])
-        plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
         nib.save(outimg,outputbase+'_%s_stdev.nii.gz' % (chaco_output['name']))
         
     if do_debug:
@@ -691,10 +648,12 @@ if __name__ == "__main__":
         raise(Exception('Input lesion mask is all zeros!'))
     
     if do_continuous:
-        Lmask=Ldata.flatten().astype(np.float32)
+        Ldata=Ldata.astype(np.float32)
     else:
         #remember to change nemo_save_average_glassbrain.py --binarize option if we change this!
-        Lmask=Ldata.flatten()!=0
+        Ldata=Ldata!=0
+        
+    Lmask=Ldata.flatten()
     
     
     ##################
@@ -816,10 +775,6 @@ if __name__ == "__main__":
         Psparse_list=None
     
     ##################
-    
-    #wmimg=nib.Nifti1Image(np.reshape(Lmask,Atest['nifti_volshape'][0]),affine=img.affine,header=img.header)
-    #plotting.view_img(wmimg,bg_img=img,cmap='hot')
-    #plotting.plot_glass_brain(wmimg,cmap='jet')
     
     chunks_in_lesion=np.unique(chunkidx_flat[Lmask!=0])
     print('Total voxels in lesion mask: %d' % (np.sum(Lmask!=0)))
@@ -1118,7 +1073,8 @@ if __name__ == "__main__":
     
     P.close()
     
-    imglesion_mni=nib.Nifti1Image(Ldata!=0,affine=refimg.affine, header=refimg.header)
+    #save lesion glassbrain here so we have a record of the EXACT input used internally 
+    imglesion_mni=nib.Nifti1Image(Ldata,affine=refimg.affine, header=refimg.header)
     imgfile_lesion=outputbase+'_glassbrain_lesion_orig.png'
     plotting.plot_glass_brain(imglesion_mni,output_file=imgfile_lesion,cmap='jet',colorbar=True)
     
@@ -1177,13 +1133,9 @@ if __name__ == "__main__":
                 chaco_smooth_std[np.isnan(chaco_smooth_std)]=0
             
             outimg=nib.Nifti1Image(np.reshape(np.array(chaco_smooth_mean),chaco_output['reshape'].shape),affine=chaco_output['reshape'].affine, header=chaco_output['reshape'].header)
-            imgfile=outputbase+'_glassbrain_%s_smooth%gmm_mean.png' % (chaco_output['name'],smoothing_fwhm)
-            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
             nib.save(outimg,outputbase+'_%s_smooth%gmm_mean.nii.gz' % (chaco_output['name'],smoothing_fwhm))
             
             outimg=nib.Nifti1Image(np.reshape(np.array(chaco_smooth_std),chaco_output['reshape'].shape),affine=chaco_output['reshape'].affine, header=chaco_output['reshape'].header)
-            imgfile=outputbase+'_glassbrain_%s_smooth%gmm_stdev.png' % (chaco_output['name'],smoothing_fwhm)
-            plotting.plot_glass_brain(outimg,output_file=imgfile,colorbar=True)
             nib.save(outimg,outputbase+'_%s_smooth%gmm_stdev.nii.gz' % (chaco_output['name'],smoothing_fwhm))
             
     print('NeMo took a total of %s for %s' % (durationToString(time.time()-starttime),lesionfile))
