@@ -140,7 +140,8 @@ def checkVolumeShape(Pimg, refimg, filename_display, expected_shape, expected_sh
         print('%s was 181x217x181, not the expected 182x218x182. Resampling to expected.' % (filename_display))
         Pimg=nibabel.processing.resample_from_to(Pimg,refimg,order=0)
     else:
-        raise(Exception('Unexpected volume size: (%d,%d,%d) for %s. Input must be registered to 182x218x182 MNIv6 template (FSL template)' % (Pimg.shape[0],Pimg.shape[1],Pimg.shape[2],filename_display)))
+        shapestr=",".join([str(x) for x in Pimg.shape])
+        raise(Exception('Unexpected volume size: (%s) for %s. Each input must be a SINGLE volume registered to 182x218x182 MNIv6 template (FSL template)' % (shapestr,filename_display)))
     return Pimg
 
 def smooth_sparse_vol(sparsevals, fwhm, volshape, voxmm):
