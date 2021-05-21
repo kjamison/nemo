@@ -35,6 +35,7 @@ var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',descr
     'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},
     'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)'},
     'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)'},
+    'fs191subj': {name: 'FreeSurferSUIT191-subj', thumbnail:'images/thumbnail_fs191.png',description:'Subject-specific Destrieux (aparc.a2009s) (148 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)'},
      'cocommp438subj': {name: 'CocoMMP438-subj','thumbnail':'images/thumbnail_cocommp438.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
      'cocommpsuit439subj': {name: 'CocoMMPsuit439-subj','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
     'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
