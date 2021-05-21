@@ -6,6 +6,7 @@ cc400,cc400_new1mm_seq392.nii.gz,cc400_roi_labels_seq392.csv,
 shen268,shen268_MNI1mm_dil1.nii.gz,shen_268_parcellation_networklabels.csv,
 fs86avg,fs86_dil1_allsubj_mode.nii.gz,fs86_FreeSurferLUT.txt,
 fs86subj,fs86_dil1_allsubj.npz,fs86_FreeSurferLUT.txt,fs86_dil1_allsubj_mode.nii.gz
+fs86dil3subj,fs86_dil3_allsubj.npz,fs86_FreeSurferLUT.txt,fs86_dil1_allsubj_mode.nii.gz
 fs111avg,fs111cereb_dil1_allsubj_mode.nii.gz,fs111cereb_FreeSurferLUT.txt,this
 fs111subj,fs111cereb_dil1_allsubj.npz,fs111cereb_FreeSurferLUT.txt,fs111cereb_dil1_allsubj_mode.nii.gz
 fs191subj,fs191_sgmfix_dil1_allsubj.npz,fs191_FreeSurferLUT.txt,fs191_sgmfix_dil1_allsubj_mode.nii.gz
@@ -15,3 +16,7 @@ cocommpsuit439avg,cocommpsuit439_dil1_allsubj_mode.nii.gz,cocommpsuit439_roi_lab
 cocommpsuit439subj,cocommpsuit439_dil1_allsubj.npz,cocommpsuit439_roi_labels.txt,cocommpsuit439_dil1_allsubj_mode.nii.gz
 yeo7,Yeo2011_7Networks_MNI152_182x218x182_LiberalMask.nii.gz,Yeo2011_7Networks_NetworkNames_ColorLUT.txt,
 yeo17,Yeo2011_17Networks_MNI152_182x218x182_LiberalMask.nii.gz,Yeo2011_17Networks_NetworkNames_ColorLUT.txt,
+cocoyeo243subj,cocoyeo243_dil1_allsubj.npz,cocoyeo243_LUT.txt,cocoyeo243_dil1_allsubj_mode.nii.gz
+cocoyeo443subj,cocoyeo443_dil1_allsubj.npz,cocoyeo443_LUT.txt,cocoyeo443_dil1_allsubj_mode.nii.gz
+cocolaus262subj,cocolaus262_dil1_allsubj.npz,cocolaus262_LUT.txt,cocolaus262_dil1_allsubj_mode.nii.gz
+cocolaus491subj,cocolaus491_dil1_allsubj.npz,cocolaus491_LUT.txt,cocolaus491_dil1_allsubj_mode.nii.gz

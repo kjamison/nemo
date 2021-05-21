@@ -28,7 +28,9 @@ var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/
      'cocommpsuit439avg': {name: 'CocoMMPsuit439-avg','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
 };
 
-var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
+var atlasinfo = {};
+
+var atlasinfo_public = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
     'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'166-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)'},
     'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
     'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
@@ -40,6 +42,13 @@ var atlasinfo = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',descr
      'cocommpsuit439subj': {name: 'CocoMMPsuit439-subj','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
     'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
     'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
+};
+
+var atlasinfo_internal = {'fs86dil3subj': {name: 'FreeSurfer86dil3-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)'},
+	'cocoyeo243subj': {name: 'CocoYeo243-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 243-region with Schaefer200 (200 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)'},
+	'cocoyeo443subj': {name: 'CocoYeo443-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 443-region with Schaefer400 (400 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)'},
+	'cocolaus262subj': {name: 'CocoLaus262-subj', thumbnail:'images/thumbnail_cocolaus262.png',description:'Subject-specific 262-region with Lausanne221 (219 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
+	'cocolaus491subj': {name: 'CocoLaus491-subj', thumbnail:'images/thumbnail_cocolaus491.png',description:'Subject-specific 491-region with Lausanne450 (448 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
 };
 
 var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels'},
@@ -173,7 +182,9 @@ function showUploader(run_internal_script) {
         'You can upload a single NIfTI file, or a .zip file containing up to 10 NIfTI files.<br/>',
         '</div>'].join('\n');
     
+    atlasinfo=atlasinfo_public;
     if(run_internal_script){
+        Object.assign(atlasinfo,atlasinfo_internal);
         extra_html+=['<label for="outputlocation">Copy to S3 location: s3://</label>',
         '<input id="outputlocation" type="text" size="50" value="kuceyeski-wcm-temp/kwj2001/nemo_output"><br/><br/>',
         '<label for="coco_password">Password:</label>',
