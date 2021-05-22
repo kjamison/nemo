@@ -21,11 +21,12 @@ def argument_parse_nemosc(argv):
     parser.add_argument("--outputstdev",action="store",dest="outfilestdev")
     parser.add_argument("--triu",action="store_true",dest="triu")
     parser.add_argument("--nodiag",action="store_true",dest="nodiag")
+    parser.add_argument("--onlydenom",action="store_true",dest="onlydenom")
     
     args=parser.parse_args(argv)
     return args
 
-def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfile=None,do_triu=False,do_nodiag=False):
+def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfile=None,do_triu=False,do_nodiag=False,do_onlydenom=False):
     C=pickle.load(open(chacofile,"rb"))
     D=pickle.load(open(denomfile,"rb"))
     roivolmat=None
@@ -51,7 +52,11 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
     
     #compute estimated SC for each reference subject from (1-chaco)*reference
     #(element-wise multiplication)
-    SC=(1-Cnew)*Dnew
+    if not do_onlydenom:
+        SC=(1-Cnew)*Dnew
+    else:
+        #in onlydenom case, we are computing the average SC for this atlas, ignoring the chaco info completely
+        SC=Dnew
     
     #if roivols were provided (RefSubj x R), create a new R x R x RefSubj 3D matrix 
     # where Vmat[i,j,Subj]=(roivol[Subj,i]+roivol[Subj,j])/2
@@ -94,4 +99,4 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
 if __name__ == "__main__": 
     args=argument_parse_nemosc(sys.argv[1:])
     chacoconn_to_nemosc(chacofile=args.chacofile, denomfile=args.denomfile, outfile=args.outfile, outfile_stdev=args.outfilestdev,
-        roivolfile=args.roivolfile, do_triu=args.triu, do_nodiag=args.nodiag)
+        roivolfile=args.roivolfile, do_triu=args.triu, do_nodiag=args.nodiag,do_onlydenom=args.onlydenom)

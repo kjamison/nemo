@@ -213,6 +213,17 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
     * Like FreeSurfer86-subj, this is a subject-specific parcellation
 * <code>CocoMMPsuit439-subj</code>: 439-region atlas from CocoMMP438, but with 27 SUIT cerebellar subregions instead of 26 from AAL3v1
     * Like FreeSurfer86, this is a subject-specific parcellation
+* <code>CocoYeo243-subj</code>: 243-region atlas combining Schaefer200 cortical ROIs + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Schaefer 2018](https://pubmed.ncbi.nlm.nih.gov/28981612/)
+* <code>CocoYeo443-subj</code>: 243-region atlas combining Schaefer400 cortical ROIs + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Schaefer 2018](https://pubmed.ncbi.nlm.nih.gov/28981612/)
+* <code>CocoLaus157-subj</code>: 157-region atlas combining Lausanne116 (114 cortical ROIs) + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Daducci 2012](https://pubmed.ncbi.nlm.nih.gov/23272041/)
+    * Corpus callosum is excluded from the Lausanne
+    * Lausanne ROIs are re-ordered to group subparcels of the original Desikan-Killiany gyral parcels
+* <code>CocoLaus262-subj</code>: 262-region atlas combining Lausanne221 (219 cortical ROIs) + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Daducci 2012](https://pubmed.ncbi.nlm.nih.gov/23272041/)
+    * Corpus callosum is excluded from the Lausanne221
+    * Lausanne221 ROIs are re-ordered to group subparcels of the original Desikan-Killiany gyral parcels
+* <code>CocoLaus491-subj</code>: 491-region atlas combining Lausanne450 (448 cortical ROIs) + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Daducci 2012](https://pubmed.ncbi.nlm.nih.gov/23272041/)
+    * Corpus callosum is excluded from the Lausanne450
+    * Lausanne450 ROIs are re-ordered to group subparcels of the original Desikan-Killiany gyral parcels
 * <code>FreeSurfer86-avg</code>, <code>FreeSurferSUIT111-avg</code>, <code>CocoMMP438-avg</code>, <code>CocoMMPsuit439-avg</code>: Same regions as -subj but defined as a single group-level MNI volume 
     * Each subject parcellation was mode-dilated by 1mm, then we computed the mode across all subjects
 * <code>AAL</code>: 116-region Automated Anatomical Labeling atlas from [Tzourio-Mazoyer 2002](https://pubmed.ncbi.nlm.nih.gov/11771995/)
@@ -228,4 +239,7 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
 * See files in [website/atlases/](website/atlases/)
 
 [![FS86](website/images/thumbnail_fs86.png)](website/images/thumbnail_fs86_large.png) [![FS111](website/images/thumbnail_fs111cereb.png)](website/images/thumbnail_fs111cereb_large.png)
-[![FS191](website/images/thumbnail_fs191.png)](website/images/thumbnail_fs191_large.png) [![CocoMMP438](website/images/thumbnail_cocommp438.png)](website/images/thumbnail_cocommp438_large.png) [![CocoMMPSUIT439](website/images/thumbnail_cocommpsuit439.png)](website/images/thumbnail_cocommpsuit439_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![AAL3](website/images/thumbnail_aal3.png)](website/images/thumbnail_aal3_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)
+[![FS191](website/images/thumbnail_fs191.png)](website/images/thumbnail_fs191_large.png) [![CocoMMP438](website/images/thumbnail_cocommp438.png)](website/images/thumbnail_cocommp438_large.png) [![CocoMMPSUIT439](website/images/thumbnail_cocommpsuit439.png)](website/images/thumbnail_cocommpsuit439_large.png)
+[![CocoYeo243](website/images/thumbnail_cocoyeo243.png)](website/images/thumbnail_cocoyeo243_large.png) [![CocoYeo443](website/images/thumbnail_cocoyeo443.png)](website/images/thumbnail_cocoyeo443_large.png)
+[![CocoLaus157](website/images/thumbnail_cocolaus157.png)](website/images/thumbnail_cocolaus157_large.png) [![CocoLaus262](website/images/thumbnail_cocolaus262.png)](website/images/thumbnail_cocolaus262_large.png)
+[![CocoLaus491](website/images/thumbnail_cocolaus491.png)](website/images/thumbnail_cocolaus491_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![AAL3](website/images/thumbnail_aal3.png)](website/images/thumbnail_aal3_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)
