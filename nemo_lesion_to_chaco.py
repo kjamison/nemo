@@ -129,12 +129,18 @@ def flatParcellationToTransform(Pflat, isubj=None, out_type="csr", max_sequentia
         return sparse.csc_matrix((np.ones(pmaskidx.size),(pmaskidx,uidx)),shape=(numvoxels,numroi),dtype=np.float32)
 
 def checkVolumeShape(Pimg, refimg, filename_display, expected_shape, expected_shape_spm):
-    if Pimg.shape == expected_shape:
+    imgshape=Pimg.shape
+    if len(imgshape)>=4 and  all([x==1 for x in imgshape[3:]]):
+        #some nii files include a 4th dimension even for single volumes (eg: outputs from nifti_4dfp)
+        #if all dimensions>3 are just 1, just flatten and reshape to correct 3D
+        Pimg=nib.Nifti1Image(np.reshape(Pimg.get_fdata().flatten()[:np.prod(imgshape)],imgshape[:3]),affine=Pimg.affine,header=Pimg.header)
+        imgshape=Pimg.shape
+    if imgshape == expected_shape:
         #seems correct
         #pass
         #resample no matter in case there's some LPI vs RPI issue
         Pimg=nibabel.processing.resample_from_to(Pimg,refimg,order=0)
-    elif Pimg.shape == expected_shape_spm:
+    elif imgshape == expected_shape_spm:
         #print('%s was 181x217x181, not the expected 182x218x181. Assuming SPM-based reg and padding end of each dim.' % (filename_display))
         #Pdata=np.pad(Pdata,(0,1),mode='constant')
         print('%s was 181x217x181, not the expected 182x218x182. Resampling to expected.' % (filename_display))
