@@ -220,6 +220,7 @@ function showUploader(run_internal_script) {
         'Note: Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
         'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
         '</div>',
+        '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
         '<br/>',
         'General options:<br/>',
         '<input type="checkbox" id="cumulative" name="cumulative" value="1">',
@@ -325,12 +326,13 @@ function getResolutionSelectHtml(id){
 function getParcSelectHtml(id){
     htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'parc\',\'addparc_select\',false)">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
+    htmlTemplate.push('<option value="custom">[Upload custom atlas]</option>');
     atlasnames=Object.keys(atlasinfo);
     for(var i = 0; i < atlasnames.length; i++){
         htmlTemplate.push('<option value="'+atlasnames[i]+'">'+atlasinfo[atlasnames[i]]['name']+'</option>');
     }
 
-    htmlTemplate.push('<option value="custom">[Upload atlas]</option>');
+
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
 }
