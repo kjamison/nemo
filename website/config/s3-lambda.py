@@ -166,9 +166,6 @@ def sendCompletionEmail(useremail, duration_string, filesize_string, downloadurl
                 'ToAddresses': [
                     RECIPIENT,
                 ],
-                'BccAddresses': [
-                    SENDER,
-                ],
             },
             Message={
                 'Body': {
