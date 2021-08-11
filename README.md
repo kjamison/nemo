@@ -213,6 +213,7 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
     * Like FreeSurfer86-subj, this is a subject-specific parcellation
 * <code>CocoMMPsuit439-subj</code>: 439-region atlas from CocoMMP438, but with 27 SUIT cerebellar subregions instead of 26 from AAL3v1
     * Like FreeSurfer86, this is a subject-specific parcellation
+* <code>CocoYeo143-subj</code>: 143-region atlas combining Schaefer100 cortical ROIs + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Schaefer 2018](https://pubmed.ncbi.nlm.nih.gov/28981612/)
 * <code>CocoYeo243-subj</code>: 243-region atlas combining Schaefer200 cortical ROIs + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Schaefer 2018](https://pubmed.ncbi.nlm.nih.gov/28981612/)
 * <code>CocoYeo443-subj</code>: 243-region atlas combining Schaefer400 cortical ROIs + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Schaefer 2018](https://pubmed.ncbi.nlm.nih.gov/28981612/)
 * <code>CocoLaus157-subj</code>: 157-region atlas combining Lausanne116 (114 cortical ROIs) + 16 aseg subcortical + 27 cerebellar subregions from SUIT [Daducci 2012](https://pubmed.ncbi.nlm.nih.gov/23272041/)
@@ -240,6 +241,7 @@ nib.save(Vcursor,"mylesion_chacoconn_res5mm_voxel_%s_cursor.nii.gz" % (voxel_ijk
 
 [![FS86](website/images/thumbnail_fs86.png)](website/images/thumbnail_fs86_large.png) [![FS111](website/images/thumbnail_fs111cereb.png)](website/images/thumbnail_fs111cereb_large.png)
 [![FS191](website/images/thumbnail_fs191.png)](website/images/thumbnail_fs191_large.png) [![CocoMMP438](website/images/thumbnail_cocommp438.png)](website/images/thumbnail_cocommp438_large.png) [![CocoMMPSUIT439](website/images/thumbnail_cocommpsuit439.png)](website/images/thumbnail_cocommpsuit439_large.png)
+[![CocoYeo143](website/images/thumbnail_cocoyeo143.png)](website/images/thumbnail_cocoyeo143_large.png)
 [![CocoYeo243](website/images/thumbnail_cocoyeo243.png)](website/images/thumbnail_cocoyeo243_large.png) [![CocoYeo443](website/images/thumbnail_cocoyeo443.png)](website/images/thumbnail_cocoyeo443_large.png)
 [![CocoLaus157](website/images/thumbnail_cocolaus157.png)](website/images/thumbnail_cocolaus157_large.png) [![CocoLaus262](website/images/thumbnail_cocolaus262.png)](website/images/thumbnail_cocolaus262_large.png)
 [![CocoLaus491](website/images/thumbnail_cocolaus491.png)](website/images/thumbnail_cocolaus491_large.png) [![AAL](website/images/thumbnail_aal.png)](website/images/thumbnail_aal_large.png) [![AAL3](website/images/thumbnail_aal3.png)](website/images/thumbnail_aal3_large.png) [![CC200](website/images/thumbnail_cc200.png)](website/images/thumbnail_cc200_large.png) [![CC400](website/images/thumbnail_cc400.png)](website/images/thumbnail_cc400_large.png) [![Shen268](website/images/thumbnail_shen268.png)](website/images/thumbnail_shen268_large.png) [![Yeo7](website/images/thumbnail_yeo7.png)](website/images/thumbnail_yeo7_large.png) [![Yeo17](website/images/thumbnail_yeo17.png)](website/images/thumbnail_yeo17_large.png)
