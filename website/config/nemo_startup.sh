@@ -332,12 +332,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 #to get the filename with dilation
                 out_dilation_fmt=$(echo $atlasline | jq --raw-output '.parcfile_dilated_format //empty')
                 
-                if [ "${out_dilation_fmt}" = "compute" ] && [ "${out_dilation}" != "0" ]; then
-                    #Dilate the parcellation by x mm to make sure we catch nearby streamlines
-                    out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
-                    echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
-                    python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
-                    out_filename=${out_filename_dilated}
+                if [ "${out_dilation_fmt}" = "compute" ]; then
+                    if [ "${out_dilation}" != "0" ]; then
+                        #Dilate the parcellation by x mm to make sure we catch nearby streamlines
+                        out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
+                        echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
+                        python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
+                        out_filename=${out_filename_dilated}
+                    fi
                 elif [ "x${out_dilation_fmt}" != x ]; then
                     #this is used for pre-dilated subject-specific parcellations, ie fs86_dil%d_allsubj.npz
                     out_filename=${atlasdir}/$(printf ${out_dilation_fmt} ${out_dilation})

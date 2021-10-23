@@ -211,9 +211,18 @@ function showUploader(run_internal_script) {
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
         
+        extra_html+=['<button id="add_all_atlases" onclick="addAllAtlases()">Add all atlases</button>',
+        '<button id="set_all_dilations0" onclick="setAllDilations(0)">Dilation 0</button>',
+        '<button id="set_all_dilations1" onclick="setAllDilations(1)">Dilation 1</button>',
+        '<button id="set_all_dilations2" onclick="setAllDilations(2)">Dilation 2</button>',
+        '<button id="set_all_dilations3" onclick="setAllDilations(3)">Dilation 3</button>',
+        '</br>'].join('\n');
+        
         //For now, lets only offer this option for debugging purposes
         extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
         '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores)</label><br/>'].join('\n');
+        
+        
     }
     
     extra_algo_html=['<label for="tracking_algorithm_select">Tractography algorithm:</label>',
@@ -267,7 +276,7 @@ function showUploader(run_internal_script) {
     
     var gittxt=" [<a class='gitlink' href='https://github.com/kjamison/nemo#readme' target='_blank'>github docs</a>]";
     //get version info
-    if(document.URL.startsWith("file:///")){
+    if(run_local_script){
         nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
         document.getElementById('version').innerHTML="NeMo vLOCAL"+gittxt;
     } else {
@@ -308,6 +317,29 @@ function neutralMessage(message,keep_buttons_disabled){
         updateStatusMessage(message,"statustext_neutral",keep_buttons_disabled);
     else
         updateStatusMessage(message,"statustext_blank",keep_buttons_disabled);
+}
+
+
+//Debugging functions
+function addAllAtlases(){
+    var parcsel_id="addparc_select";
+    var parcsel=document.getElementById(parcsel_id);
+    atlaslist=Object.keys(atlasinfo); 
+    for(var i=0; i<atlaslist.length; i++){
+        parcsel.value=atlaslist[i]; 
+        addOutput("parc",parcsel_id); 
+    }
+}
+function setAllDilations(dilation){
+    if(dilation===undefined)
+        dilation=3;
+    
+    var nextparc=parseInt(getNextAvailableId("addparc",1).replace("addparc",""));
+    for(var i=1; i<nextparc; i++){
+        var dilsel=document.getElementById("addparc"+i+"_dilselect");
+        if(dilsel)
+            dilsel.value=dilation
+    }
 }
 
 
