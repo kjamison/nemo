@@ -30,7 +30,7 @@ aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instan
 
 #Download the config file and append it to the ec2 instance tags
 s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' ${tagfile})
-aws s3 cp s3://${s3path}_config.json $HOME/tmp_config.json
+aws s3 cp s3://${s3path}_config.json $HOME/tmp_config.json --no-progress
 jq --raw-output '.[]' $HOME/tmp_config.json >> ${tagfile}
 rm -f $HOME/tmp_config.json
 
@@ -80,7 +80,7 @@ s3filename=$(basename $s3path)
 s3filename_noext=$(echo ${s3filename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 origfilename_noext=$(echo ${origfilename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 
-aws s3 cp s3://${s3path} $HOME/${s3filename}
+aws s3 cp s3://${s3path} $HOME/${s3filename} --no-progress
 
 s3lower=$(echo $s3filename | tr "[A-Z]" "[a-z]")
 
@@ -200,17 +200,17 @@ fi
 
 #copy latest version of the lesion scripts
 scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py 
-    nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py"
+    nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py dilate_parcellation.py"
 
 if [ "${do_debug}" != "true" ]; then
     for f in $scriptfiles; do
-        aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/
+        aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
     done
 else
     #in debug mode, only copy updated scripts if they weren't already available
     for f in $scriptfiles; do
         if [ ! -e ${NEMODIR}/${f} ]; then
-            aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/
+            aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
         fi
     done
 fi
@@ -232,7 +232,7 @@ mkdir -p $(dirname $outputbase)
 output_config_file=${outputbase}_${origtimestamp}_config.json
 output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
 echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
-aws s3 cp ${output_config_file} ${output_config_s3file}
+aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
 
 echo "NeMo version ${nemo_version}_${nemo_version_date}" > ${logfile}
 date --utc >> ${logfile}
@@ -244,16 +244,16 @@ cd ${NEMODIR}
 #atlaslist="aal cc200 cc400"
 
 atlasdir=$HOME/nemo_atlases
-atlaslistfile=${atlasdir}/atlas_list.csv
+atlaslistfile=${atlasdir}/atlas_list.json
 
-#aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz"
-aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz" --exclude "atlas_list.csv"
+#aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz" --no-progress
+aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz" --exclude "atlas_list.json" --no-progress
 if [ "${do_debug}" != "true" ]; then
-    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.csv ${atlasdir}/
+    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${atlasdir}/ --no-progress
 else
     #in debug mode, only copy atlas_list if it wasn't already available
-    if [ ! -e ${atlasdir}/atlas_list.csv ]; then
-        aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.csv ${atlasdir}/
+    if [ ! -e ${atlasdir}/atlas_list.json ]; then
+        aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${atlasdir}/ --no-progress
     fi
 fi
 
@@ -262,6 +262,8 @@ parcelarg=""
 resolutionarg=""
 output_pairwiselist=""
 output_allreflist=""
+output_keepdiaglist=""
+output_dilationlist=""
 output_roilistfile=""
 output_displayvollist=""
 parcfile_testsize_list=""
@@ -280,51 +282,95 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         
         out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
+        out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
+        out_dilation=$(jq --raw-output 'select(.Key=="'${o}_dilation'") | .Value' ${tagfile} | head -n1)
+                
+        out_filename=
         
         #only used for subject-specific parcellations
         out_filename_displayvol=
-        out_filename=
         
         if [ "x${out_filekey}" != "x" ]; then
             out_filebasename=$(basename ${out_filekey})
             out_filename=${atlasdir}/${out_filebasename}
-            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename}
+            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename} --no-progress
             if [ "${do_debug}" != "true" ]; then
                 #delete custom uploaded parc file after downloading
                 aws s3 rm s3://${inputbucket}/${out_filekey}
             fi
+            
+            if [ "x${out_dilation}" != "x" ] && [ "${out_dilation}" != "0" ]; then
+                #Dilate the parcellation by x mm to make sure we catch nearby streamlines
+                out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
+                echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
+                python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
+                out_filename=${out_filename_dilated}
+            fi
+            
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
             parcfile_testsize_list+=" ${out_filename}"
+            
         else
             #need to search through available atlas files for the one specified by ${out_name}
             #and assign out_filename=atlases/thatfile.nii.gz
             
             out_lowername=$(echo ${out_name} | tr "[A-Z]" "[a-z]")
-            atlasline=$(grep -E "^${out_lowername}," ${atlaslistfile})
+            atlasline=$(jq --raw-output '.[] | select(.name=="'${out_lowername}'")' ${atlaslistfile})
             if [ "x${atlasline}" = "x" ]; then
                 echo "Atlas not found: ${out_name}"
                 exit 1
             fi
             
-            out_filename=$(echo $atlasline | awk -F, '{print $2}')
-            #subject-specific files have an extra entry for the display volume
-            out_filename_displayvol=$(echo $atlasline | awk -F, '{print $4}')
+            if [ "x${out_dilation}" == "x" ]; then
+                #no dilation argument, use default parcellation volume
+                out_filebasename=$(echo $atlasline | jq --raw-output '.parcfile')
+                out_filename=${atlasdir}/${out_filebasename}
+            else
+                out_filebasename=$(echo $atlasline | jq --raw-output '.parcfile')
+                out_filename=${atlasdir}/${out_filebasename}
+                #when dilation argument present, fill in the "%d" in dilation format string for this atlas
+                #to get the filename with dilation
+                out_dilation_fmt=$(echo $atlasline | jq --raw-output '.parcfile_dilated_format //empty')
+                
+                if [ "${out_dilation_fmt}" = "compute" ] && [ "${out_dilation}" != "0" ]; then
+                    #Dilate the parcellation by x mm to make sure we catch nearby streamlines
+                    out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
+                    echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
+                    python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
+                    out_filename=${out_filename_dilated}
+                elif [ "x${out_dilation_fmt}" != x ]; then
+                    #this is used for pre-dilated subject-specific parcellations, ie fs86_dil%d_allsubj.npz
+                    out_filename=${atlasdir}/$(printf ${out_dilation_fmt} ${out_dilation})
+                fi
+            fi
             
-            out_filename=${atlasdir}/${out_filename}
+            #subject-specific files have an extra entry for the display volume
+            out_filename_displayvol=$(echo $atlasline | jq --raw-output '.displayvolume //empty')
+            
             if [ "x${out_filename_displayvol}" != x ]; then
                 out_filename_displayvol=${atlasdir}/${out_filename_displayvol}
             fi
             
             if [ ! -e ${out_filename} ]; then
                 #so we don't have to copy the giant subject-specific files unless we need them
-                #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename}
+                #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
+                if [ ! -e ${out_filename} ]; then
+                    echo "Atlas not found on S3: " $(basename ${out_filename})
+                    exit 1
+                fi
             fi
             if [ "x${out_filename_displayvol}" != x ] && [ ! -e ${out_filename_displayvol} ]; then
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_displayvol}) ${out_filename_displayvol}
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_displayvol}) ${out_filename_displayvol} --no-progress
+                if [ ! -e ${out_filename_displayvol} ]; then
+                    echo "Atlas displayvol not found on S3: " $(basename ${out_filename_displayvol})
+                    exit 1
+                fi
             fi
             
-            out_roilistfile=${atlasdir}/$(echo $atlasline | awk -F, '{print $3}')
+
+            
+            out_roilistfile=${atlasdir}/$(echo $atlasline | jq --raw-output '.labeltextfile')
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
         fi
         if [ -e "${out_filename_displayvol}" ]; then
@@ -336,6 +382,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         if [ ${out_pairwise} = "false" ]; then
             parcarg_tmp+="?nopairwise"
         fi
+        if [ ${out_keepdiag} = "true" ]; then
+            parcarg_tmp+="?keepdiag"
+        fi
+
         parcelarg+=" ${parcarg_tmp}"
         
     elif  [[ $o == addres* ]]; then
@@ -345,10 +395,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         out_name="res${out_res}mm"
         out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
+        out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
         if [ ${out_pairwise} = "false" ]; then
             resarg_tmp+="?nopairwise"
+        fi
+        if [ ${out_keepdiag} = "true" ]; then
+            resarg_tmp+="?keepdiag"
         fi
         resolutionarg+=" ${resarg_tmp}"
     fi
@@ -364,9 +418,11 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     output_namelist+=" ${out_name}"
     output_pairwiselist+=" ${out_pairwise}"
     output_allreflist+=" ${out_allref}"
+    output_keepdiaglist+=" ${out_keepdiag}"
     output_roilistfile+=" ${out_roilistfile}"
     output_displayvollist+=" ${out_filename_displayvol}"
 done
+pairwisearg="--pairwise" #FORCE nemo to use pairwise pipeline
 #remember: pairwise should be set to "--pairwise" if ANY output asks for it
 
 #############
@@ -412,7 +468,7 @@ else
 fi
 
 #copy lesion glassbrain image back to input bucket so web interface can show the result
-#aws s3 cp ${input_lesion_image} s3://${s3path}${status_suffix}
+#aws s3 cp ${input_lesion_image} s3://${s3path}${status_suffix} --no-progress
 aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${input_lesion_image} --tagging ${input_status_tagstring}
 
 #delete the input file from the s3 bucket
@@ -566,7 +622,7 @@ while read inputfile; do
 
     if [ "${do_s3direct}"  = "1" ]; then
         #copy all data to a new s3 bucket
-        aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*"
+        aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
         #update ziplistfile as we go, so we can delete files as we go
         (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
         (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
@@ -660,7 +716,7 @@ if [ "${do_s3direct}"  = "1" ]; then
     duration=$(echo "$endtime - $starttime" | bc -l)
 
     #copy any remaining files to s3 bucket
-    aws s3 sync ./ ${s3direct_resultpath} --exclude "*_ziplist.txt" --exclude "*_upload_info.json"
+    aws s3 sync ./ ${s3direct_resultpath} --exclude "*_ziplist.txt" --exclude "*_upload_info.json" --no-progress
     
     #now copy files for email
     #(note: for the s3direct version, the filename isn't downloadable so it doesn't need to be .png or .zip or anything)
@@ -694,7 +750,7 @@ else
     
     #we can't upload >5GB using aws s3api put-object, which is the only way to including tagging AND trigger lambda,
     #so upload the output zip first, then we'll upload a dummy file later with tagging info 
-    aws s3 cp ${outputfilename}  s3://${outputbucket}/${outputkey}
+    aws s3 cp ${outputfilename}  s3://${outputbucket}/${outputkey} --no-progress
     
 fi
 
@@ -710,9 +766,9 @@ jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstat
 
 
 if [ "${success_count}" -gt "1" ]; then
-    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile} --include ${uploadjson}
+    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile} --include ${uploadjson} --no-progress
 else
-    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile} --include ${uploadjson}
+    aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile} --include ${uploadjson} --no-progress
 fi
 
 output_tagstring="email=${email}"
@@ -730,8 +786,8 @@ if [ "${do_s3direct}"  = "1" ]; then
 fi
 jq -s --arg s3result_expiration "${output_expiration}" '.[0]+.[1]+{s3result_expiration:$s3result_expiration}' ${output_config_file} ${uploadjson} > ${finaljson}
 
-aws s3 cp ${finaljson} ${output_config_s3file}
-aws s3 cp ${logfile} s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_log.txt
+aws s3 cp ${finaljson} ${output_config_s3file} --no-progress
+aws s3 cp ${logfile} s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_log.txt --no-progress
 
 if [ "${do_debug}" != "true" ]; then
     sudo shutdown -h now

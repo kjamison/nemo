@@ -21,49 +21,55 @@ var default_allref_parc=true
 var default_allref_res_thresh=Infinity
 var default_pairwise_parc=true
 var default_pairwise_res_thresh=3
-    
+var default_regionwise_keepdiag=false
+var default_regionwise_keepdiag_regionthresh=30 //keep diag by default if regioncount<=thresh
+
+var min_parc_dilation=0;
+var max_parc_dilation=3;
+var default_parc_dilation=1;
+
 //these atlases are deprecated since people should be using the -subj version anyway
-var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj'},
-     'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
-     'cocommpsuit439avg': {name: 'CocoMMPsuit439-avg','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
+var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj', regioncount: 86},
+     'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)', regioncount: 438},
+     'cocommpsuit439avg': {name: 'CocoMMPsuit439-avg','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)', regioncount: 439},
 };
 
 var atlasinfo = {};
 
-var atlasinfo_public = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)'},
-    'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'166-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)'},
-    'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)'},
-    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)'},
-    'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)'},
-    'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)'},
-    'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)'},
-    'fs191subj': {name: 'FreeSurferSUIT191-subj', thumbnail:'images/thumbnail_fs191.png',description:'Subject-specific Destrieux (aparc.a2009s) (148 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)'},
-     'cocommp438subj': {name: 'CocoMMP438-subj','thumbnail':'images/thumbnail_cocommp438.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)'},
-     'cocommpsuit439subj': {name: 'CocoMMPsuit439-subj','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)'},
-	'cocoyeo143subj': {name: 'CocoYeo143-subj', thumbnail:'images/thumbnail_cocoyeo143.png',description:'Subject-specific 143-region with Schaefer100 (100 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)'},
-	'cocoyeo243subj': {name: 'CocoYeo243-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 243-region with Schaefer200 (200 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)'},
-	'cocoyeo443subj': {name: 'CocoYeo443-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 443-region with Schaefer400 (400 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)'},
-	'cocolaus157subj': {name: 'CocoLaus157-subj', thumbnail:'images/thumbnail_cocolaus157.png',description:'Subject-specific 157-region with Lausanne116 (114 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
-	'cocolaus262subj': {name: 'CocoLaus262-subj', thumbnail:'images/thumbnail_cocolaus262.png',description:'Subject-specific 262-region with Lausanne221 (219 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
-	'cocolaus491subj': {name: 'CocoLaus491-subj', thumbnail:'images/thumbnail_cocolaus491.png',description:'Subject-specific 491-region with Lausanne450 (448 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
-    'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)'},
-    'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)'},
+var atlasinfo_public = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png',description:'116-region cortical+subcortical (Tzourio-Mazoyer 2002)', regioncount: 116, defaultdilation: 0},
+    'aal3' : {name: 'AAL3v1', thumbnail:'images/thumbnail_aal3.png',description:'166-region cortical+subcortical AAL3v1, with high-resolution midbrain ROIs (Rolls 2020)', regioncount: 166, defaultdilation: 0},
+    'cc200': {name: 'CC200', thumbnail:'images/thumbnail_cc200.png',description:'200-region cortical+subcortical (Craddock 2012)', regioncount: 200, defaultdilation: 0},
+    'cc400': {name: 'CC400', thumbnail:'images/thumbnail_cc400.png',description:'392-region cortical+subcortical (Craddock 2012)', regioncount: 392, defaultdilation: 0},
+    'shen268': {name: 'Shen268', thumbnail:'images/thumbnail_shen268.png',description:'268-region cortical+subcortical (Shen 2013)', regioncount: 268, defaultdilation: 0},
+    'fs86subj': {name: 'FreeSurfer86-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)', regioncount: 86},
+    'fs111subj': {name: 'FreeSurferSUIT111-subj', thumbnail:'images/thumbnail_fs111cereb.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)', regioncount: 111},
+    'fs191subj': {name: 'FreeSurferSUIT191-subj', thumbnail:'images/thumbnail_fs191.png',description:'Subject-specific Destrieux (aparc.a2009s) (148 cortical) + aseg (16 subcortical, no brainstem) + SUIT (27 cerebellar)', regioncount: 191},
+     'cocommp438subj': {name: 'CocoMMP438-subj','thumbnail':'images/thumbnail_cocommp438.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)', regioncount: 438},
+     'cocommpsuit439subj': {name: 'CocoMMPsuit439-subj','thumbnail':'images/thumbnail_cocommpsuit439.png',description:'Subject-specific Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), SUIT cerebellum (27)', regioncount: 439},
+	'cocoyeo143subj': {name: 'CocoYeo143-subj', thumbnail:'images/thumbnail_cocoyeo143.png',description:'Subject-specific 143-region with Schaefer100 (100 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)', regioncount: 143},
+	'cocoyeo243subj': {name: 'CocoYeo243-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 243-region with Schaefer200 (200 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)', regioncount: 243},
+	'cocoyeo443subj': {name: 'CocoYeo443-subj', thumbnail:'images/thumbnail_cocoyeo243.png',description:'Subject-specific 443-region with Schaefer400 (400 cortical) + aseg (16 subcortical) + SUIT (27 cerebellar) (Schaefer 2018)', regioncount: 443},
+	'cocolaus157subj': {name: 'CocoLaus157-subj', thumbnail:'images/thumbnail_cocolaus157.png',description:'Subject-specific 157-region with Lausanne116 (114 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)', regioncount: 157},
+	'cocolaus262subj': {name: 'CocoLaus262-subj', thumbnail:'images/thumbnail_cocolaus262.png',description:'Subject-specific 262-region with Lausanne221 (219 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)', regioncount: 262},
+	'cocolaus491subj': {name: 'CocoLaus491-subj', thumbnail:'images/thumbnail_cocolaus491.png',description:'Subject-specific 491-region with Lausanne450 (448 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)', regioncount: 491},
+    'yeo7': {name: 'Yeo7', thumbnail:'images/thumbnail_yeo7.png', description:'7-network cortical-only (Yeo 2011)', regioncount: 7, defaultdilation: 0},
+    'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)', regioncount: 17, defaultdilation: 0},
 };
 
-var atlasinfo_internal = {'fs86dil3subj': {name: 'FreeSurfer86dil3-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)'},
-	'cocolaus157dil3subj': {name: 'CocoLaus157dil3-subj', thumbnail:'images/thumbnail_cocolaus157.png',description:'Subject-specific 157-region with Lausanne116 (114 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)'},
+var atlasinfo_internal = {'fs86dil3subj': {name: 'FreeSurfer86dil3-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)', regioncount: 86},
+	'cocolaus157dil3subj': {name: 'CocoLaus157dil3-subj', thumbnail:'images/thumbnail_cocolaus157.png',description:'Subject-specific 157-region with Lausanne116 (114 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)',regioncount: 157},
 };
 
-var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels'},
-    '2': {name:'2 mm', thumbnail:'images/thumbnail_res2mm.png', description:'91x109x91 (902629 voxels), 201891 streamline endpoint voxels'},
-    '3': {name:'3 mm', thumbnail:'images/thumbnail_res3mm.png', description:'61x73x61 (271633 voxels), 64823 streamline endpoint voxels'},
-    '4': {name:'4 mm', thumbnail:'images/thumbnail_res4mm.png', description:'46x55x46 (116380 voxels), 28796 streamline endpoint voxels'},
-    '5': {name:'5 mm', thumbnail:'images/thumbnail_res5mm.png', description:'37x44x37 (60236 voxels), 15550 streamline endpoint voxels'},
-    '6': {name:'6 mm', thumbnail:'images/thumbnail_res6mm.png', description:'31x37x31 (35557 voxels), 9360 streamline endpoint voxels'},
-    '7': {name:'7 mm', thumbnail:'images/thumbnail_res7mm.png', description:'26x32x26 (21632 voxels), 6103 streamline endpoint voxels'},
-    '8': {name:'8 mm', thumbnail:'images/thumbnail_res8mm.png', description:'23x28x23 (14812 voxels), 4234 streamline endpoint voxels'},
-    '9': {name:'9 mm', thumbnail:'images/thumbnail_res9mm.png', description:'21x25x21 (11025 voxels), 3054 streamline endpoint voxels'},
-    '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels'}
+var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels', regioncount: Infinity},
+    '2': {name:'2 mm', thumbnail:'images/thumbnail_res2mm.png', description:'91x109x91 (902629 voxels), 201891 streamline endpoint voxels', regioncount: Infinity},
+    '3': {name:'3 mm', thumbnail:'images/thumbnail_res3mm.png', description:'61x73x61 (271633 voxels), 64823 streamline endpoint voxels', regioncount: Infinity},
+    '4': {name:'4 mm', thumbnail:'images/thumbnail_res4mm.png', description:'46x55x46 (116380 voxels), 28796 streamline endpoint voxels', regioncount: Infinity},
+    '5': {name:'5 mm', thumbnail:'images/thumbnail_res5mm.png', description:'37x44x37 (60236 voxels), 15550 streamline endpoint voxels', regioncount: Infinity},
+    '6': {name:'6 mm', thumbnail:'images/thumbnail_res6mm.png', description:'31x37x31 (35557 voxels), 9360 streamline endpoint voxels', regioncount: Infinity},
+    '7': {name:'7 mm', thumbnail:'images/thumbnail_res7mm.png', description:'26x32x26 (21632 voxels), 6103 streamline endpoint voxels', regioncount: Infinity},
+    '8': {name:'8 mm', thumbnail:'images/thumbnail_res8mm.png', description:'23x28x23 (14812 voxels), 4234 streamline endpoint voxels', regioncount: Infinity},
+    '9': {name:'9 mm', thumbnail:'images/thumbnail_res9mm.png', description:'21x25x21 (11025 voxels), 3054 streamline endpoint voxels', regioncount: Infinity},
+    '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels', regioncount: Infinity}
 };
 
 var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
@@ -179,7 +185,9 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message, val
 }
 
 function showUploader(run_internal_script) {
-    if (run_internal_script === undefined) run_internal_script = false;
+    if (run_internal_script === undefined) run_internal_script = false; //is user on internal site?
+    run_local_script = document.URL.startsWith("file:///"); //is user on LOCAL (testing/debugging) site?
+    
     extra_html='';
     upload_note_html=['<div id="mninote" class="mninote">',
         'You can upload a single NIfTI file, or a .zip file containing up to 10 NIfTI files.<br/>',
@@ -198,9 +206,14 @@ function showUploader(run_internal_script) {
             '</div>'].join('\n');
     }
     
-    if(document.URL.startsWith("file:///")){
+    extra_accum_html='';
+    if(run_local_script){
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
+        
+        //For now, lets only offer this option for debugging purposes
+        extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
+        '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores)</label><br/>'].join('\n');
     }
     
     extra_algo_html=['<label for="tracking_algorithm_select">Tractography algorithm:</label>',
@@ -209,6 +222,7 @@ function showUploader(run_internal_script) {
     '<br/><br/>'].join("\n");
     
     var htmlTemplate = [
+        '<div id="version" class="versiondiv"></div>',
         '<label for="email">E-mail address:</label>',
         '<input id="email" type="text" placeholder="email@address.com" size="30"><br/><br/>',
         '<label for="fileupload">MNI Lesion NIfTI file (or .zip):</label>',
@@ -224,8 +238,7 @@ function showUploader(run_internal_script) {
         '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
         '<br/>',
         'General options:<br/>',
-        '<input type="checkbox" id="cumulative" name="cumulative" value="1">',
-        '<label for="cumulative">Accumulate total hits along streamline</label><br/>',
+        extra_accum_html,
         '<input type="checkbox" id="siftweights" name="siftweights" value="1" checked>',
         '<label for="siftweights">Weight streamlines by data fit (SIFT2)</label><br/>',
         '<input type="checkbox" id="smoothing" name="smoothing" value="1" checked>',
@@ -242,8 +255,7 @@ function showUploader(run_internal_script) {
         '<br/>',
         extra_html,
         '<div style="text-align:center"><button id="upload" onclick="submitMask()" class="bigbutton">Submit File</button></div>',
-        '<div id="uploadstatus"></div><div id="uploadstatusimage"></div>',
-        '<div id="version" class="versiondiv"></div>'
+        '<div id="uploadstatus"></div><div id="uploadstatusimage"></div>'
     ];
     document.getElementById("app").innerHTML = htmlTemplate.join("\n");
     document.getElementById('fileupload').onchange = function(){
@@ -253,7 +265,7 @@ function showUploader(run_internal_script) {
     }
     addOutput("res",null,true);
     
-    var gittxt=" [<a class='gitlink' href='https://github.com/kjamison/nemo' target='_blank'>github docs</a>]";
+    var gittxt=" [<a class='gitlink' href='https://github.com/kjamison/nemo#readme' target='_blank'>github docs</a>]";
     //get version info
     if(document.URL.startsWith("file:///")){
         nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
@@ -300,7 +312,7 @@ function neutralMessage(message,keep_buttons_disabled){
 
 
 function getTrackingAlgoSelectHtml(id){
-    htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
+    var htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
     algonames=Object.keys(tracking_algo_info);
     for(var i=0; i<algonames.length; i++){
         selstr=""
@@ -314,7 +326,7 @@ function getTrackingAlgoSelectHtml(id){
 }
 
 function getResolutionSelectHtml(id){
-    htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'res\',\'addres_select\',false)">'];
+    var htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'res\',\'addres_select\',false)">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
     resnames=Object.keys(resinfo);
     for(var i=0; i<resnames.length; i++){
@@ -325,7 +337,7 @@ function getResolutionSelectHtml(id){
 }
 
 function getParcSelectHtml(id){
-    htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'parc\',\'addparc_select\',false)">'];
+    var htmlTemplate=['<select id="'+id+'" name="'+id+'" onchange="addOutput(\'parc\',\'addparc_select\',false)">'];
     htmlTemplate.push('<option value="none">[SELECT]</option>');
     htmlTemplate.push('<option value="custom">[Upload custom atlas]</option>');
     atlasnames=Object.keys(atlasinfo);
@@ -338,11 +350,33 @@ function getParcSelectHtml(id){
     return htmlTemplate.join("\n");
 }
 
+function getParcDilationHtml(id, override_default_dilation){
+    var default_dil=default_parc_dilation;
+    if (override_default_dilation !== undefined)
+        default_dil=override_default_dilation;
+    
+    var htmlTemplate=['<select id="'+id+'" name="'+id+'">'];
+    
+    for(var i = min_parc_dilation; i <= max_parc_dilation; i++){
+        dilstring=i.toString()+"mm";
+        isdefaultstring="";
+        if(i==0)
+            dilstring+=" (not recommended)"; 
+        if(i==default_dil)
+            isdefaultstring=" selected";
+        htmlTemplate.push('<option value="'+i+'" '+isdefaultstring+'>'+dilstring+'</option>');
+    }
+
+    htmlTemplate.push('</select>');
+    return htmlTemplate.join("\n");
+}
+
 function addOutput(parc_or_res, select_id, init1mm){
     neutralMessage(""); //clear previous messages
     var allrefchecked=""
     var pairwisechecked=""
-    
+    var keepdiagchecked=""
+
     if(init1mm){
         var selvalue="1";
         var seltext="1 mm";
@@ -353,14 +387,26 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         }
         var seltext=myselect.options[myselect.options.selectedIndex].text;
+
+        //if regioncount is available for this output, retrieve the value. We will use it 
+        //to decide if keepdiag should be checked (eg: for Yeo7)
+        regioncount=Infinity;
+        if (atlasinfo[selvalue]){
+            regioncount=atlasinfo[selvalue]["regioncount"];
+        } else if (resinfo[selvalue]) {
+            regioncount=resinfo[selvalue]["regioncount"];
+        }
         
         //by default, only set "allref" for parcellations
         if(parc_or_res=="parc"){
             if(default_allref_parc) allrefchecked="checked";
             if(default_pairwise_parc) pairwisechecked="checked";
+            if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
         } else if(parc_or_res=="res"){
             if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
             if(selvalue>=default_pairwise_res_thresh) pairwisechecked="checked";
+            if(default_regionwise_keepdiag) keepdiagchecked="checked";
+            if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
         }
     }
     if(select_id)
@@ -386,9 +432,13 @@ function addOutput(parc_or_res, select_id, init1mm){
     var newfileinput_id=null;
     var newfilelabel_id=null;
     
+    var dilsel_html="";
+    
     htmlTemplate=[];
     htmlTemplate.push('<button onclick="removeOutput(\''+newid+'\')" style="float:right">X</button>');
     if (parc_or_res == "parc") {
+        var dilsel_thisdefault=null;
+        
         if (selvalue=="custom") {
             newfileinput_id=newid+'_fileupload';
             newfilelabel_id=newid+'_filesize';
@@ -405,9 +455,22 @@ function addOutput(parc_or_res, select_id, init1mm){
             if (atlasinfo[selvalue]['description'])
                 parc_description="<br/><div class='parcdiv_description'>"+atlasinfo[selvalue]['description']+'</div>';
             
+            if (atlasinfo[selvalue]['defaultdilation'] !== undefined){
+                dilsel_thisdefault=atlasinfo[selvalue]['defaultdilation'];
+            }
             htmlTemplate.push('<b>Parcellation: '+seltext+'</b>'+parc_description,
             '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
         }
+        
+        var dilsel=newid+"_dilselect";
+        var dilhtml_tmp=""
+        if(dilsel_thisdefault != null)
+            dilhtml_tmp=getParcDilationHtml(dilsel,dilsel_thisdefault);
+        else
+            dilhtml_tmp=getParcDilationHtml(dilsel);
+        
+        dilsel_html='<label for="'+dilsel+'">Dilate parcels by:</label> ' +  dilhtml_tmp + "<br>";
+        
     } else if (parc_or_res=="res") {
         if(resinfo[selvalue] && resinfo[selvalue]['thumbnail'])
             htmlTemplate.push('<div style="float:right; padding-right: 20pt"><a href="'+resinfo[selvalue]['thumbnail'].replace(".png","_large.png")+'" target="_blank"><img src="'+resinfo[selvalue]['thumbnail']+'"></a></div>');
@@ -420,7 +483,11 @@ function addOutput(parc_or_res, select_id, init1mm){
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
-    htmlTemplate.push('<br/><input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
+    htmlTemplate.push('<br/>',
+        dilsel_html,
+        '<input type="checkbox" id="'+newid+'_keepdiag" name="'+newid+'_keepdiag" value="1" '+keepdiagchecked+'>',
+        '<label for="'+newid+'_keepdiag">Count streamlines that start and end in the same ROI in region-wise output</label><br/>',
+        '<input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
         '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label><br/>',
         '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" '+allrefchecked+'>',
         '<label for="'+newid+'_output_allref">Output ChaCo for each reference subject (large file size)</label><br/>');
@@ -472,7 +539,6 @@ function submitMask() {
 
     var files = document.getElementById("fileupload").files;
     var email = document.getElementById("email").value;
-    var cumulative = document.getElementById("cumulative").checked;
     var smoothing = document.getElementById("smoothing").checked;
     var siftweights = document.getElementById("siftweights").checked;
     var statusdiv = document.getElementById("uploadstatus");
@@ -480,6 +546,10 @@ function submitMask() {
     var outputlocation = document.getElementById("outputlocation");
     var cocopassword = document.getElementById("coco_password");
     var debug_input = document.getElementById("debug");
+
+    var cumulative = false;
+    if(document.getElementById("cumulative"))
+        cumulative = document.getElementById("cumulative").checked;
     
     var tracking_algo = null
     if(document.getElementById("tracking_algorithm_select"))
@@ -508,6 +578,8 @@ function submitMask() {
         var this_id=resparc[i].id;
         var this_pairwise=document.getElementById(this_id+"_pairwise").checked;
         var this_output_allref=document.getElementById(this_id+"_output_allref").checked;
+        var this_keepdiag=document.getElementById(this_id+"_keepdiag").checked;
+        var this_dilselect=document.getElementById(this_id+"_dilselect");
         var this_customname=document.getElementById(this_id+"_customname");
         var this_name=document.getElementById(this_id+"_name");
         var this_filenode=document.getElementById(this_id+"_fileupload");
@@ -516,6 +588,11 @@ function submitMask() {
             this_name=this_customname.value;
         else
             this_name=this_name.value;
+        
+        if(this_dilselect != null)
+            this_dilation=this_dilselect.value;
+        else
+            this_dilation=null
         
         var this_newkey=""
         if (this_filenode != null){
@@ -567,11 +644,16 @@ function submitMask() {
         if (this_id.startsWith("addres")) {
             //res=1, pairwise, allref, 
             //addres1_pairwise=True, addres1_allref=True, addres1_res=1
-            outputs_taglist=outputs_taglist.concat([{Key: this_prefix+"_res", Value: this_name}, {Key: this_prefix+"_pairwise", Value: this_pairwise}, {Key: this_prefix+"_allref", Value: this_output_allref}]);
+            outputs_taglist=outputs_taglist.concat([{Key: this_prefix+"_res", Value: this_name}, {Key: this_prefix+"_pairwise", Value: this_pairwise}, 
+                {Key: this_prefix+"_allref", Value: this_output_allref},{Key: this_prefix+"_keepdiag", Value: this_keepdiag}]);
 
         } else if(this_id.startsWith("addparc")) {
             //addparc1_pairwise=True, addparc1_allref=True, addparc1_name=cc200, addparc1_file=parc001.nii.gz
-            outputs_taglist=outputs_taglist.concat([{Key: this_prefix+"_name", Value: this_name}, {Key: this_prefix+"_pairwise", Value: this_pairwise}, {Key: this_prefix+"_allref", Value: this_output_allref}]);
+            outputs_taglist=outputs_taglist.concat([{Key: this_prefix+"_name", Value: this_name}, {Key: this_prefix+"_pairwise", Value: this_pairwise}, 
+                {Key: this_prefix+"_allref", Value: this_output_allref},{Key: this_prefix+"_keepdiag", Value: this_keepdiag}]);
+            
+            if(this_dilation != null)
+                outputs_taglist.push({Key: this_prefix+"_dilation", Value: this_dilation});
             
             if(this_newkey.length>0)
                 outputs_taglist.push({Key: this_prefix+"_filekey", Value: this_newkey});

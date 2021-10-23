@@ -44,6 +44,7 @@ def argument_parse(arglist):
     parser.add_argument('--continuous_value',action='store_true', dest='continuous_value')
     parser.add_argument('--tracking_algorithm',action='store',dest='tracking_algorithm')
     parser.add_argument('--debug',action='store_true', dest='debug')
+    parser.add_argument('--subjcount',action='store', dest='subjcount', type=int, help='number of reference subjects to compute (for debugging only!)')
     
     return parser.parse_args(arglist)
 
@@ -297,7 +298,7 @@ def map_to_endpoints_conn(isubj):
     #sparse.save_npz(tmpdir+'/chacoconnAconnsum_subj%05d.npz' % (isubj),Aconnsum,compressed=False)
     
     
-    chacovol=sparse.csr_matrix(chacoconn.sum(axis=0)+chacoconn.sum(axis=1).T) #.multiply(Asum[isubj,:])
+    chacovol=sparse.csr_matrix(chacoconn.sum(axis=0)+sparse.triu(chacoconn,k=1).sum(axis=1).T)
     #!!!!! chacovol[0]=0
     chacovol.eliminate_zeros()
     chacofile_subj=tmpdir+'/chacovol_subj%05d.npz' % (isubj)
@@ -334,7 +335,14 @@ def map_to_endpoints_conn(isubj):
         if do_save_fullconn:
             chacofile_subj=tmpdir+'/chacoconn_denom_subj%05d.npz' % (isubj)
             sparse.save_npz(chacofile_subj,Aconnsum,compressed=False)
-            
+        
+        #compute the full voxelwise denom here since it doesn't take that long relative to other 
+        #steps and we dont have to worry about precomputing every combination of flavors
+        chacovol_denom=sparse.csr_matrix(Aconnsum.sum(axis=0)+sparse.triu(Aconnsum,k=1).sum(axis=1).T)
+        chacovol_denom.eliminate_zeros()
+        chacofile_subj=tmpdir+'/chacovol_denom_subj%05d.npz' % (isubj)
+        sparse.save_npz(chacofile_subj,chacovol_denom,compressed=False)
+    
     if Psparse_list:
         for iparc, Pdict in enumerate(Psparse_list):
             if isinstance(Pdict['transform'],list):
@@ -345,29 +353,41 @@ def map_to_endpoints_conn(isubj):
             
             chacoconn_parc=Psparse.T.tocsr() @ chacoconn @ Psparse
             
-            if Pdict['voxmm'] is None:
-                #for parcellations (not downsampled resolutions), make output matrix upper triangular
-                chacoconn_parc=sparse.triu(chacoconn_parc.maximum(chacoconn_parc.T))
-                
-            chacovol_parc=sparse.csr_matrix(chacoconn_parc.sum(axis=0)+chacoconn_parc.sum(axis=1).T)
-            chacovol_parc.eliminate_zeros()
-            
-            chacofile_subj=tmpdir+'/chacovol_parc%05d_subj%05d.npz' % (iparc,isubj)
-            sparse.save_npz(chacofile_subj,chacovol_parc,compressed=False)
+            #Make parcellated/downsampled outputs upper triangular (keeping diagonal)
+            chacoconn_parc=sparse.triu(chacoconn_parc,k=0)+sparse.tril(chacoconn_parc,k=-1).T
+               
             
             #sparse.save_npz(chacofile_subj,chacoconn.multiply(Aconnsum),compressed=False)
             chacofile_subj=tmpdir+'/chacoconn_parc%05d_subj%05d.npz' % (iparc,isubj)
             sparse.save_npz(chacofile_subj,chacoconn_parc,compressed=False)
+
             #chacovol_parc=((T_allsubj[isubj,:]>0) @ (B @ Psparse)).multiply(Asum[isubj,:] @ Psparse))
             
+            #kval=0 means keep self-self entries (pairwise diagonals) when computing regional scores
+            #kval=1 means remove that diagonal before computing regional score
+            #pairwise (chacoconn) outputs remain unchanged
+            chacovol_keepdiag_kval=1 #exclude diag by default
+            if Pdict['keepdiag']:
+                chacovol_keepdiag_kval=0
+            
+            chacovol_parc=sparse.csr_matrix(sparse.triu(chacoconn_parc,k=chacovol_keepdiag_kval).sum(axis=0)+sparse.triu(chacoconn_parc,k=1).sum(axis=1).T)
+            chacovol_parc.eliminate_zeros()
+            
+            chacofile_subj=tmpdir+'/chacovol_parc%05d_subj%05d.npz' % (iparc,isubj)
+            sparse.save_npz(chacofile_subj,chacovol_parc,compressed=False)
+
             if do_compute_denom:
                 Aconnsum_parc=Psparse.T.tocsr() @ Aconnsum @ Psparse
                 Aconnsum_parc.eliminate_zeros()
-                if Pdict['voxmm'] is None:
-                    #for parcellations (not downsampled resolutions), make output matrix upper triangular
-                    Aconnsum_parc=sparse.triu(Aconnsum_parc.maximum(Aconnsum_parc.T))
+                #Make parcellated/downsampled outputs upper triangular (keeping diagonal)
+                Aconnsum_parc=sparse.triu(Aconnsum_parc,k=0)+sparse.tril(Aconnsum_parc,k=-1).T
                 chacofile_subj=tmpdir+'/chacoconn_parc%05d_denom_subj%05d.npz' % (iparc,isubj)
                 sparse.save_npz(chacofile_subj,Aconnsum_parc,compressed=False)
+                chacovol_parc_denom=sparse.csr_matrix(sparse.triu(Aconnsum_parc,k=chacovol_keepdiag_kval).sum(axis=0)+sparse.triu(Aconnsum_parc,k=1).sum(axis=1).T)
+                chacovol_parc_denom.eliminate_zeros()
+                
+                chacofile_subj=tmpdir+'/chacovol_parc%05d_denom_subj%05d.npz' % (iparc,isubj)
+                sparse.save_npz(chacofile_subj,chacovol_parc_denom,compressed=False)
 
 ###########################################################
 
@@ -398,7 +418,7 @@ def make_triangular_matrix_symmetric(m):
     return m
 
 def save_chaco_output(chaco_output):   
-    #externals: Psparse_list, HACK_NUMBER_OF_SUBJECTS, tmpdir, Asum, Aconnsum, do_debug, outputbase, 
+    #externals: Psparse_list, NUMBER_OF_SUBJECTS_TO_COMPUTE, tmpdir, Asum, Aconnsum, do_debug, outputbase, 
 #for chaco_output in chaco_output_list:
     #print(chaco_output)
     chaco_allsubj=[]
@@ -411,7 +431,7 @@ def save_chaco_output(chaco_output):
             
     starttime_accum=time.time()
     #for isubj in range(numsubj):
-    for isubj in range(HACK_NUMBER_OF_SUBJECTS):
+    for isubj in range(NUMBER_OF_SUBJECTS_TO_COMPUTE):
         chacofile_subj=tmpdir+'/'+chaco_output['numerator'] % (isubj)
         chacofile_subj_denom=None
         chaco_numer=sparse.load_npz(chacofile_subj)
@@ -426,7 +446,9 @@ def save_chaco_output(chaco_output):
                 chaco_denom=Asum[isubj,:]
             else:
                 chaco_denom=Asum[isubj,:] @ Ptmp
-            chaco_denom = chaco_denom.multiply(chaco_numer>0)
+            #DON'T zero the denominator when numer is zero, because
+            #we need the original denominator intact for nemoSC
+            #chaco_denom = chaco_denom.multiply(chaco_numer>0)
             chaco_denom.eliminate_zeros()
         
         elif chaco_output['denominator'] == 'Aconnsum':
@@ -434,7 +456,9 @@ def save_chaco_output(chaco_output):
                 chaco_denom=Aconnsum[isubj]
             else:
                 chaco_denom=Ptmp.T.tocsr() @ Aconnsum[isubj] @ Ptmp
-            chaco_denom = chaco_denom.multiply(chaco_numer>0)
+            #DON'T zero the denominator when numer is zero, because
+            #we need the original denominator intact for nemoSC
+            #chaco_denom = chaco_denom.multiply(chaco_numer>0)
             chaco_denom.eliminate_zeros()
         
         else:
@@ -449,7 +473,7 @@ def save_chaco_output(chaco_output):
         os.remove(chacofile_subj)
         if chacofile_subj_denom is not None:
             os.remove(chacofile_subj_denom)
-            
+        
     if do_debug:
         print('Loading in %s took %s' % (chaco_output['name'],durationToString(time.time()-starttime_accum)))
         
@@ -531,6 +555,7 @@ if __name__ == "__main__":
     do_pairwise=args.pairwise
     do_continuous=args.continuous_value
     do_debug=args.debug
+    debug_subjcount=args.subjcount
     tracking_algorithm=args.tracking_algorithm
     
     print("Executed with the following inputs:")
@@ -662,7 +687,6 @@ if __name__ == "__main__":
         
     Lmask=Ldata.flatten()
     
-    
     ##################
     Psparse_list=[]
     
@@ -673,13 +697,15 @@ if __name__ == "__main__":
         volshape=refimg.shape
         for r in new_resolution:
             r_pairwise=do_pairwise
-        
+            r_keepdiag=False
             if r.find("?") >= 0:
                 #handle ?nopairwise option
                 r_opts=r.split("?")[1:]
                 r=r.split("?")[0]
                 if "nopairwise" in r_opts:
                     r_pairwise=False
+                if "keepdiag" in r_opts:
+                    r_keepdiag=True
             if r.find("=") >= 0:
                 [r,rname]=r.split("=")
                 newvoxmm=round(abs(float(r)))
@@ -690,6 +716,8 @@ if __name__ == "__main__":
             r_pairwisestr=""
             if r_pairwise:
                 r_pairwisestr=" with pair-wise chacoconn"
+            if r_keepdiag:
+                r_pairwisestr+=", including diagonal in voxel-wise chacovol"
             
             if newvoxmm <= 1:
                 do_save_fullvol=True
@@ -701,13 +729,14 @@ if __name__ == "__main__":
         
             Psparse, newvolshape, newrefimg = createSparseDownsampleParcellation(newvoxmm, origvoxmm, volshape, refimg)
         
-            Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname, 'pairwise': r_pairwise, 'displayvol': None})
+            Psparse_list.append({'transform': Psparse, 'reshape': newrefimg, 'voxmm': newvoxmm, 'name': rname, 'pairwise': r_pairwise, 'displayvol': None, 'keepdiag': r_keepdiag})
             
             print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d)%s.' % (newvoxmm,newvolshape[0],newvolshape[1],newvolshape[2],r_pairwisestr))
     
     if parcelfiles:
         for p in parcelfiles:
             p_pairwise=do_pairwise
+            p_keepdiag=False
             p_displayvol=None
             if p.find("?") >= 0:
                 #handle ?nopairwise option
@@ -715,6 +744,8 @@ if __name__ == "__main__":
                 p=p.split("?")[0]
                 if "nopairwise" in p_opts:
                     p_pairwise=False
+                if "keepdiag" in p_opts:
+                    p_keepdiag=True
                 if any([x.startswith("displayvol=") for x in p_opts]):
                     displayvolfile=[x.split("=")[1] for x in p_opts if x.startswith("displayvol=")][0]
                     p_displayvol=nib.load(displayvolfile)
@@ -760,11 +791,13 @@ if __name__ == "__main__":
                 numroi = Psparse.shape[1]
             
             
-            Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise, 'displayvol': p_displayvol})
+            Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise, 'displayvol': p_displayvol, 'keepdiag': p_keepdiag})
         
             p_pairwisestr=""
             if p_pairwise:
                 p_pairwisestr=" with pair-wise chacoconn"
+            if p_keepdiag:
+                p_pairwisestr+=", include diagonal in region-wise chacovol"
             
             if isinstance(Psparse,list):
                 print('Output will include subject-specific parcellation %s (%s, total parcels = %d)%s.' % (pname,pfile.split("/")[-1],numroi,p_pairwisestr))
@@ -948,15 +981,18 @@ if __name__ == "__main__":
     
     print('Mapping to endpoints and ChaCo', end='',flush=True)
     
-    #HACK_NUMBER_OF_SUBJECTS=50
-    HACK_NUMBER_OF_SUBJECTS=numsubj
+    if debug_subjcount and debug_subjcount>0:
+        NUMBER_OF_SUBJECTS_TO_COMPUTE=min(debug_subjcount,numsubj)
+    else:
+        NUMBER_OF_SUBJECTS_TO_COMPUTE=numsubj
     
     #Now multiply with B mat to go from tracks->endpoints
     #result = (numsubj x numvoxels)
     starttime_endpoints=time.time()
     
     if do_pairwise:
-        #print('Mapping to conn', end='',flush=True)
+        if do_debug:
+            print(' (conn)', end='',flush=True)
         
         #Now multiply with B mat to go from tracks->endpoints
         #result = (numsubj x numvoxels)
@@ -965,19 +1001,22 @@ if __name__ == "__main__":
         #multiproc_cores=1
         P=multiprocessing.Pool(multiproc_cores)
         #P.map(map_to_endpoints, range(numsubj))
-        P.map(map_to_endpoints_conn, range(HACK_NUMBER_OF_SUBJECTS))
+        P.map(map_to_endpoints_conn, range(NUMBER_OF_SUBJECTS_TO_COMPUTE))
         
         P.close()
         
         print(' took %s on %d threads' % (durationToString(time.time()-starttime_endpoints),multiproc_cores))
         
     else:    
+        if do_debug:
+            print(' (voxelwise, not conn)', end='',flush=True)
+        
         starttime_endpoints=time.time()
         
         #multiproc_cores=1
         P=multiprocessing.Pool(multiproc_cores)
         #P.map(map_to_endpoints_numerator, range(numsubj))
-        P.map(map_to_endpoints_numerator, range(HACK_NUMBER_OF_SUBJECTS))
+        P.map(map_to_endpoints_numerator, range(NUMBER_OF_SUBJECTS_TO_COMPUTE))
         
         P.close()
         
@@ -993,7 +1032,7 @@ if __name__ == "__main__":
     tracklengths=None
     
     if do_debug:
-        print(tmpdir)
+        print("Temp outputs in: ",tmpdir)
     
     ########
     
@@ -1043,7 +1082,7 @@ if __name__ == "__main__":
     chaco_output_list=[]
     
     if do_save_fullvol:
-        chaco_output_list.append({"name":"chacovol_%s" % (origres_name), "numerator":'chacovol_subj%05d.npz', "denominator":'Asum', 
+        chaco_output_list.append({"name":"chacovol_%s" % (origres_name), "numerator":'chacovol_subj%05d.npz', "denominator":'chacovol_denom_subj%05d.npz', 
             "parcelindex":None, "reshape": refimg, "voxmm": voxmm})
     
     if do_save_fullconn and do_pairwise:
@@ -1057,7 +1096,7 @@ if __name__ == "__main__":
         for iparc in range(len(Psparse_list)):
             chaco_output_list.append({"name":"chacovol_%s" % (Psparse_list[iparc]['name']), 
                 "numerator": 'chacovol_parc%05d_subj%%05d.npz' % (iparc), 
-                "denominator":'Asum',
+                "denominator": 'chacovol_parc%05d_denom_subj%%05d.npz' % (iparc), 
                 "parcelindex":iparc, 
                 "reshape": Psparse_list[iparc]['reshape'], 
                 "voxmm": Psparse_list[iparc]['voxmm'],

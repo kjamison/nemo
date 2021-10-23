@@ -59,8 +59,9 @@ def save_endpoints(subjlist,outfile1,outfile2):
 def make_endpoint_mask(isubj):
 	#externals: endpointmat, numsubj, numvoxels
 	endpt=endpointmat[(isubj,isubj+numsubj),:].flatten()
-	return sparse.csr_matrix((np.ones(endpt.size,dtype=bool),(np.zeros(endpt.size),endpt)),shape=(1,numvoxels))>0
-    
+	#!!!!!return sparse.csr_matrix((np.ones(endpt.size,dtype=bool),(np.zeros(endpt.size),endpt)),shape=(1,numvoxels))>0
+	return sparse.csr_matrix((np.ones(endpt.size,dtype=np.int32),(np.zeros(endpt.size),endpt)),shape=(1,numvoxels))
+
 if __name__ == "__main__":
 	args=argument_parse()
 
@@ -139,7 +140,7 @@ if __name__ == "__main__":
 
 	#for isubj in range(numsubj):
 
-
+	num_cpu=multiprocessing.cpu_count()
 	multiproc_cores=num_cpu-1
 	#multiproc_cores=10
 	P=multiprocessing.Pool(multiproc_cores)
