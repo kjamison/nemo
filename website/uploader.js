@@ -56,8 +56,8 @@ var atlasinfo_public = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png
     'yeo17': {name: 'Yeo17', thumbnail:'images/thumbnail_yeo17.png', description:'17-network cortical-only (Yeo 2011)', regioncount: 17, defaultdilation: 0},
 };
 
-var atlasinfo_internal = {'fs86dil3subj': {name: 'FreeSurfer86dil3-subj', thumbnail:'images/thumbnail_fs86.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem)', regioncount: 86},
-	'cocolaus157dil3subj': {name: 'CocoLaus157dil3-subj', thumbnail:'images/thumbnail_cocolaus157.png',description:'Subject-specific 157-region with Lausanne116 (114 cortical subdivisions of Desikan-Killiany,<br>reordered to group gyri and remove corpus callosum) + aseg (16 subcortical) + SUIT (27 cerebellar) (Daducci 2012)',regioncount: 157},
+var atlasinfo_internal = {
+    'fs87bssubj': {name: 'FreeSurfer87bs-subj', thumbnail:'images/thumbnail_fs87bs.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (19 subcortical, including brainstem)', regioncount: 87}
 };
 
 var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels', regioncount: Infinity},
@@ -209,14 +209,14 @@ function showUploader(run_internal_script) {
     extra_accum_html='';
     if(run_local_script){
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
-        '<label for="debug">Run in debug mode</label><br/><br/>'].join('\n');
+        '<label for="debug">Run in debug mode</label><br/>'].join('\n');
         
         extra_html+=['<button id="add_all_atlases" onclick="addAllAtlases()">Add all atlases</button>',
         '<button id="set_all_dilations0" onclick="setAllDilations(0)">Dilation 0</button>',
         '<button id="set_all_dilations1" onclick="setAllDilations(1)">Dilation 1</button>',
         '<button id="set_all_dilations2" onclick="setAllDilations(2)">Dilation 2</button>',
         '<button id="set_all_dilations3" onclick="setAllDilations(3)">Dilation 3</button>',
-        '</br>'].join('\n');
+        '<br/><br/>'].join('\n');
         
         //For now, lets only offer this option for debugging purposes
         extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
