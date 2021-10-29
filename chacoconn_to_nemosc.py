@@ -1,6 +1,6 @@
 import numpy as np
 import pickle
-from scipy.io import savemat
+from scipy.io import loadmat,savemat
 import sys
 import argparse
 import nibabel as nib
@@ -8,9 +8,11 @@ import nibabel as nib
 #example:
 #python chacoconn_to_nemosc.py --chacoconn mylesion_nemo_output_chacoconn_fs86subj_allref.pkl \
 # --denom mylesion_nemo_output_chacoconn_fs86subj_allref_denom.pkl \
-# --roivol roivol_fs86_unrelated420_dwi.txt \
-# --volnorm
+# --roivol fs86_allsubj_roivol.mat \
 # --output mylesion_nemo_output_chacoconn_fs86subj_nemoSC_volnorm.txt
+
+#Note: This just counts VOXELS in the mask, not mm^3, so volnorm outputs will scale uniformly with voxel size
+# This matches the behavior of mrtrix tck2connectome
 
 def argument_parse_nemosc(argv):
     parser=argparse.ArgumentParser()
@@ -39,7 +41,18 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
         elif roivolfile.lower().endswith(".txt"):
             roivol=np.loadtxt(roivolfile)
             if roivol.shape[1]!=C[0].shape[0]:
+                #Nsubj x 1+Nroi text file where first column is subject ID
                 roivol=roivol[:,-C[0].shape[0]:]
+        elif roivolfile.lower().endswith(".mat"):
+            roivol_data=loadmat(roivolfile, mat_dtype=True) #try to avoid the float->int conversion
+            roivol=roivol_data['roivol']
+        else:
+            print("Unknown file format for roivol: %s" % (roifilevol))
+            exit(1)
+        
+        #sometimes loadmat converts values to uint16 automatically?
+        roivol=roivol.astype(np.float64)
+        
         if len(roivol.shape)==1:
             roivolmat=(np.atleast_2d(roivol)+np.atleast_2d(roivol).T)/2
         else:
