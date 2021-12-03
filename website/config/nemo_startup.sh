@@ -437,15 +437,20 @@ input_status_tagstring='password_status=success'
 
 input_check_status="success"
 
+testsize_expected="182x218x182 181x217x181"
 imgsize=$(python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile}))
 if [ -e ${input_lesion_image} ]; then
+    imgsize_isvalid=$(echo ${testsize_expected} | tr " " "\n" | grep ${imgsize} | wc -l | awk '{print $1}')
+    if [ "${imgsize_isvalid}" != 1 ]; then
+        input_check_status="error"
+        failmessage="Invalid dimensions for input volume(s)"
+    fi
     input_status_tagstring+="&imgshape=${imgsize}"
 else
     input_check_status="error"
     failmessage="Input lesion masks are not all the same dimensions"
 fi
 
-parcfile_testsize_expected="182x218x182 181x217x181"
 for parctmp_file in ${parcfile_testsize_list}; do
     parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap jet ${binarizearg} ${parctmp_file})
     if [ -z "${parctmp_imgsize}" ]; then
@@ -453,7 +458,7 @@ for parctmp_file in ${parcfile_testsize_list}; do
         failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
         break
     else
-        parctmp_imgsize_isvalid=$(echo ${parcfile_testsize_expected} | tr " " "\n" | grep ${parctmp_imgsize} | wc -l | awk '{print $1}')
+        parctmp_imgsize_isvalid=$(echo ${testsize_expected} | tr " " "\n" | grep ${parctmp_imgsize} | wc -l | awk '{print $1}')
         if [ "${parctmp_imgsize_isvalid}" != 1 ]; then
             input_check_status="error"
             failmessage="Invalid dimensions for custom parcellation: $(basename $parctmp_file)"
