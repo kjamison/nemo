@@ -55,7 +55,7 @@ output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Valu
 do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
 tracking_algo=$(jq --raw-output 'select(.Key=="tracking_algorithm") | .Value' ${tagfile} | head -n1)
 do_continuous=$(jq --raw-output 'select(.Key=="continuous") | .Value' ${tagfile} | head -n1)
-
+endpointmaskname=$(jq --raw-output 'select(.Key=="endpointmask") | .Value' ${tagfile} | head -n1)
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
 
 inputbucket=$(echo $s3path | awk -F/ '{print $1}')
@@ -152,6 +152,7 @@ smoothingmodearg=""
 weightedarg=""
 cumulativearg=""
 continuousarg=""
+endpointmaskarg=""
 debugarg=""
 binarizearg="--binarize" #for glassbrain.py
 s3arg=""
@@ -183,7 +184,6 @@ fi
 if [ "x${s3nemoroot}" != "x" ]; then
     s3arg="--s3nemoroot ${s3nemoroot}"
 fi
-
     
 algostr=""
 
@@ -196,6 +196,11 @@ else
     algostr="_${tracking_algo}"
 fi
 
+
+if [ "x${endpointmaskname}" != "x" ] && [ "${endpointmaskname}" != "NONE" ]; then
+    endpointmaskfile="nemo${algostr}_endpoints_mask_${endpointmaskname}.npy"
+    endpointmaskarg="--endpointsmask ${endpointmaskfile}"
+fi
 ###########
 
 #copy latest version of the lesion scripts
@@ -518,7 +523,7 @@ while read inputfile; do
         --asum_weighted_cumulative nemo${algostr}_Asum_weighted_cumulative.npz \
         --trackweights nemo${algostr}_siftweights.npy \
         --tracklengths nemo${algostr}_tracklengths.npy \
-        --tracking_algorithm "${tracking_algo}" ${s3arg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
+        --tracking_algorithm "${tracking_algo}" ${s3arg} ${endpointmaskarg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
             ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
     
     #if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then

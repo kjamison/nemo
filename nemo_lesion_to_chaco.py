@@ -26,6 +26,7 @@ def argument_parse(arglist):
     parser.add_argument('--chunkdir','-cd',action='store', dest='chunkdir')
     parser.add_argument('--refvol','-r',action='store', dest='refvol')
     parser.add_argument('--endpoints','-e',action='store', dest='endpoints')
+    parser.add_argument('--endpointsmask','-em',action='store', dest='endpointsmask')
     parser.add_argument('--asum','-a',action='store', dest='asum')
     parser.add_argument('--asum_weighted','-aw',action='store', dest='asum_weighted')
     parser.add_argument('--asum_cumulative','-ac',action='store', dest='asum_cumulative')
@@ -538,6 +539,7 @@ if __name__ == "__main__":
     chunkdir=args.chunkdir
     refimgfile=args.refvol
     endpointfile=args.endpoints
+    endpointmaskfile=args.endpointsmask
     asumfile=args.asum
     asumweightedfile=args.asum_weighted
     asumcumfile=args.asum_cumulative
@@ -611,6 +613,9 @@ if __name__ == "__main__":
     
         if do_cumulative_hits:
             nemofiles_to_download.extend([tracklengthfile])
+        
+        if endpointmaskfile:
+            nemofiles_to_download.extend([endpointmaskfile])
         #nemofiles_to_download.extend(['nemo_endpoints.npy','nemo_chunklist.npz',refimgfile])
         nemofiles_to_download.extend([endpointfile,chunklistfile,refimgfile])
     
@@ -971,7 +976,19 @@ if __name__ == "__main__":
     #(otherwise it creates a float64)
     #Asum.data=1/Asum.data.astype(np.float32)
     
-    endpointmat=np.load(endpointfile,mmap_mode='r')
+    if endpointmaskfile:
+        endpointmat=np.load(endpointfile)
+        endpointmask=np.load(endpointmaskfile)
+        print("Masking endpoints with input mask file %s" % (endpointmaskfile))
+        if endpointmask.shape[0]==endpointmat.shape[0]//2:
+            endpointmat*=np.vstack((endpointmask,endpointmask))
+        elif endpointmask.shape[0]==endpointmat.shape[0]:
+            endpointmat*=endpointmask
+        else:
+            raise(Exception('Invalid endpointmask shape! Must be %d or %d, but was instead %d' % (endpointmat.shape[0]//2,endpointmat.shape[0],endpointmask.shape[0])))
+    else:
+        endpointmask=None
+        endpointmat=np.load(endpointfile,mmap_mode='r')
     
     print('Loading sumfiles and endpoints took %s' % (durationToString(time.time()-starttime_loadmap)))
     
@@ -1030,6 +1047,7 @@ if __name__ == "__main__":
     endpointmat=None
     trackweights=None
     tracklengths=None
+    endpointmask=None
     
     if do_debug:
         print("Temp outputs in: ",tmpdir)

@@ -24,6 +24,9 @@ var default_pairwise_res_thresh=3
 var default_regionwise_keepdiag=false
 var default_regionwise_keepdiag_regionthresh=30 //keep diag by default if regioncount<=thresh
 
+var default_endpointmask_checked=true
+var default_endpointmask_name="fs87bs_dil3"
+
 var min_parc_dilation=0;
 var max_parc_dilation=3;
 var default_parc_dilation=1;
@@ -221,6 +224,13 @@ function showUploader(run_internal_script) {
         //For now, lets only offer this option for debugging purposes
         extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
         '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores)</label><br/>'].join('\n');
+        
+        if(default_endpointmask_checked)
+            maskcheckstr="1"
+        else
+            maskcheckstr="0"
+        extra_accum_html+=['<input type="checkbox" id="endpointmask_checkbox" name="endpointmask_checkbox" value="'+maskcheckstr+'">',
+        '<label for="endpointmask_checkbox">Ignore streamlines that terminate in white-matter</label><br/>'].join('\n');
         
         
     }
@@ -587,6 +597,13 @@ function submitMask() {
     if(document.getElementById("tracking_algorithm_select"))
         tracking_algo=document.getElementById("tracking_algorithm_select").value;
     
+    
+    //endpointmask_name="fs87bs_dil3";
+    var endpointmask_name = null
+    if(document.getElementById("endpointmask_checkbox") && document.getElementById("endpointmask_checkbox").checked)
+            endpointmask_name=default_endpointmask_name
+    
+    
     neutralMessage("...",true);
     document.getElementById("upload").disabled=true;
     statusimgdiv.innerHTML="";
@@ -752,6 +769,9 @@ function submitMask() {
     
     if (tracking_algo)
         config_taglist=config_taglist.concat([{Key: 'tracking_algorithm', Value: tracking_algo}]);
+    
+    if (endpointmask_name)
+        config_taglist=config_taglist.concat([{Key: 'endpointmask', Value: endpointmask_name}]);
     
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);
