@@ -448,7 +448,7 @@ if [ -e ${input_lesion_image} ]; then
     imgsize_isvalid=$(echo ${testsize_expected} | tr " " "\n" | grep ${imgsize} | wc -l | awk '{print $1}')
     if [ "${imgsize_isvalid}" != 1 ]; then
         input_check_status="error"
-        failmessage="Invalid dimensions for input volume(s)"
+        failmessage="Invalid dimensions for input volume(s): ${imgsize}"
     fi
     input_status_tagstring+="&imgshape=${imgsize}"
 else
@@ -475,7 +475,9 @@ done
 if [ ${input_check_status} = "success" ]; then
     input_status_tagstring+="&input_checks=${input_check_status}"
 else
-    echo "fail" > ${input_lesion_image}
+    echo "{}" | jq --arg failmessage "${failmessage}" \
+        '.+{failmessage:$failmessage}' > ${input_lesion_image}
+    #echo "fail" > ${input_lesion_image}
     input_status_tagstring+="&input_checks=${input_check_status}"
 fi
 

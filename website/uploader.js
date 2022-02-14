@@ -168,7 +168,16 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message, val
                     statusimgdiv.innerHTML="<div class='statusimage'>Input lesion mask</br><img src='data:image/png;base64," + base64_encode(file.Body)+"'></div>";
                 });
             } else if(tags["input_checks"]=="error"){
-                errorMessage("Input file error!");
+                s3.getObject(s3params,function(err,file){
+                    inputerror=JSON.parse(file.Body);
+                    if(err || !inputerror["failmessage"]){
+                        errorMessage("Input file error!");
+                        console.log(err)
+                    } else {
+                        errorMessage("Input file error! "+inputerror["failmessage"]);
+                    }
+                });
+                
             } else if(tags["password_status"]=="error"){
                 errorMessage("Incorrect password!");
             } else if(tags["password_status"]=="success"){
