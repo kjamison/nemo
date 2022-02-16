@@ -18,12 +18,14 @@ function randupload {
     sed -E 's#'${repstr}'[^"]*#'${repstr}'?r='$r'#' ${localfile} > ${tmpfile} && aws s3 cp ${tmpfile} ${s3dest} && rm -f ${tmpfile}
 }
 
+#echo "CURRENTLY SKIPPING" 
 aws s3 cp ${SCRIPTDIR}/../nemo_lesion_to_chaco.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_glassbrain.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_matrix_figure.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_graphbrain.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../chacoconn_to_nemosc.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../dilate_parcellation.py s3://${WEBSITE_S3}/nemo_scripts/
+aws s3 cp ${SCRIPTDIR}/../check_input_dimensions.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 sync ${SCRIPTDIR}/config s3://${WEBSITE_S3}/config
 
 #aws s3 sync ${SCRIPTDIR}/atlases s3://${WEBSITE_S3}/nemo_atlases

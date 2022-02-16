@@ -39,7 +39,8 @@ nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' ${tagfile
 nemo_version_date=$(jq --raw-output 'select(.Key=="nemo_version_date") | .Value' ${tagfile} | head -n1)
 s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' ${tagfile} | head -n1)
 s3configbucket=$(jq --raw-output 'select(.Key=="s3configbucket") | .Value' ${tagfile} | head -n1)
-origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | head -n1)
+origfilename_raw=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | head -n1)
+origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | tr " " "_" | head -n1)
 origtimestamp=$(jq --raw-output 'select(.Key=="timestamp") | .Value' ${tagfile} | head -n1)
 origtimestamp_unix=$(jq --raw-output 'select(.Key=="unixtime") | .Value' ${tagfile} | head -n1)
 email=$(jq --raw-output 'select(.Key=="email") | .Value' ${tagfile} | head -n1)
@@ -64,6 +65,7 @@ outputbucket=${inputbucket}
 inputfile_maxcount=20
 unzipdir=
 
+maximum_runtime_minutes_per_mask=720 #12 hours
 
 #config_bucket="kuceyeski-wcm-web-upload"
 #config_bucket="kuceyeski-wcm-web"
@@ -205,7 +207,7 @@ fi
 
 #copy latest version of the lesion scripts
 scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py 
-    nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py dilate_parcellation.py"
+    nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py dilate_parcellation.py check_input_dimensions.py"
 
 if [ "${do_debug}" != "true" ]; then
     for f in $scriptfiles; do
@@ -443,21 +445,22 @@ input_status_tagstring='password_status=success'
 input_check_status="success"
 
 testsize_expected="182x218x182 181x217x181"
-imgsize=$(python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile}))
-if [ -e ${input_lesion_image} ]; then
+imgsize=$(python check_input_dimensions.py $(cat ${inputfile_listfile}))
+if [ -z "${imgsize}" ]; then
+    input_check_status="error"
+    failmessage="Input lesion masks are not all the same dimensions"
+else
     imgsize_isvalid=$(echo ${testsize_expected} | tr " " "\n" | grep ${imgsize} | wc -l | awk '{print $1}')
     if [ "${imgsize_isvalid}" != 1 ]; then
         input_check_status="error"
         failmessage="Invalid dimensions for input volume(s): ${imgsize}"
     fi
     input_status_tagstring+="&imgshape=${imgsize}"
-else
-    input_check_status="error"
-    failmessage="Input lesion masks are not all the same dimensions"
 fi
 
 for parctmp_file in ${parcfile_testsize_list}; do
-    parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap jet ${binarizearg} ${parctmp_file})
+    parctmp_imgsize=$(python check_input_dimensions.py ${parctmp_file})
+    #parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap jet ${binarizearg} ${parctmp_file})
     if [ -z "${parctmp_imgsize}" ]; then
         input_check_status="error"
         failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
@@ -471,6 +474,15 @@ for parctmp_file in ${parcfile_testsize_list}; do
         fi
     fi
 done
+
+#if size checks passed, save the glassbrain preview
+if [ "${input_check_status}" = "success" ]; then
+    python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
+    if [ ! -e "${input_lesion_image}" ]; then
+        input_check_status="error"
+        failmessage="Unable to validate input volumne(s)"
+    fi
+fi
 
 if [ ${input_check_status} = "success" ]; then
     input_status_tagstring+="&input_checks=${input_check_status}"
@@ -511,8 +523,13 @@ while read inputfile; do
     inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
     outputbase_infile=${outputdir}/${inputfile_noext}_${outputsuffix}
     
+    #postpone the shutdown timer for each mask
+    #(if any lesion mask is still running after 12 hours, shut down)
+    sudo shutdown -h +${maximum_runtime_minutes_per_mask}
+    
     echo "##########################"  >> ${logfile}
     echo "# Processing " $(basename ${inputfile}) >> ${logfile}
+    date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
     python nemo_lesion_to_chaco.py --lesion ${inputfile} \
         --outputbase ${outputbase_infile} \
         --chunklist nemo${algostr}_chunklist.npz \
@@ -645,6 +662,10 @@ while read inputfile; do
     fi
 done < ${inputfile_listfile}
 
+echo "##########################"  >> ${logfile}
+echo "# Finished processing input list" >> ${logfile}
+date --utc >> ${logfile} #print ending timestamp after lesionmask loop
+
 if [ "${success_count}" -gt "1" ]; then
     python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
     for out_name in ${output_namelist}; do
@@ -769,7 +790,7 @@ else
 fi
 
 #build a json file with info we will need to send the email
-jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstatus}" --arg origfilename "${origfilename}" \
+jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstatus}" --arg origfilename "${origfilename_raw}" \
     --arg inputfilecount "${inputfile_count}" --arg submittime "${origtimestamp_unix}" --arg successcount "${success_count}" \
     --arg inputfilecount_orig "${inputfile_count_orig}" --arg outputsize "${outputsize}" --arg outputsize_unzipped "${outputsize_unzipped}" \
     --arg outputfile_key "${outputkey}" \
