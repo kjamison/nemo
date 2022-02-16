@@ -100,7 +100,7 @@ def createSparseDownsampleParcellation(newvoxmm, origvoxmm, volshape, refimg):
     
     #because voxel center is 0.5 in orig and 0.5*res in the new one, we need to add a small shift to the new reference volume so it properly overlays
     voxoffset=(newvoxmm-origvoxmm)/2.0
-    newaff[:3,-1]+np.sign(refimg.affine[:3,:3]) @ [voxoffset,voxoffset,voxoffset]
+    newaff[:3,-1]+=np.sign(refimg.affine[:3,:3]) @ [voxoffset,voxoffset,voxoffset]
     newrefimg=nib.processing.resample_from_to(refimg,(newvolshape,newaff),order=0)
     
     return Psparse, newvolshape, newrefimg
