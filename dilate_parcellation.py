@@ -65,7 +65,7 @@ def main(argv):
         Pnew=nib.Nifti1Image(Pdist.astype(np.float64),affine=Pimg.affine, header=Pimg.header)
         nib.save(Pnew,distvolfile)
 
-    Pnew=nib.Nifti1Image(Pnn.astype(Pimg.get_data_dtype()),affine=Pimg.affine, header=Pimg.header)
+    Pnew=nib.Nifti1Image(Pnn,affine=Pimg.affine, header=Pimg.header)
 
     nib.save(Pnew,outvolfile)
 
