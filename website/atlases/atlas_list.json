@@ -3,7 +3,7 @@
 {"name":"aal3", "parcfile":"AAL3v1_seq166_MNI152_1mm_182x218x182.nii.gz", "labeltextfile":"AAL3v1_seq166.txt", "parcfile_dilated_format":"compute"}, 
 {"name":"cc200", "parcfile":"cc200_new1mm.nii.gz", "labeltextfile":"cc200_roi_labels.csv", "parcfile_dilated_format":"compute"}, 
 {"name":"cc400", "parcfile":"cc400_new1mm_seq392.nii.gz", "labeltextfile":"cc400_roi_labels_seq392.csv", "parcfile_dilated_format":"compute"}, 
-{"name":"shen268", "parcfile":"shen268_MNI1mm_dil1.nii.gz", "labeltextfile":"shen_268_parcellation_networklabels.csv", "parcfile_dilated_format":"compute"}, 
+{"name":"shen268", "parcfile":"shen268_MNI1mm_dil1.nii.gz", "labeltextfile":"shen_268_parcellation_networknames.csv", "parcfile_dilated_format":"compute"}, 
 {"name":"fs86avg", "parcfile":"fs86_dil1_allsubj_mode.nii.gz", "labeltextfile":"fs86_FreeSurferLUT.txt"}, 
 {"name":"fs86subj", "parcfile":"fs86_dil1_allsubj.npz", "labeltextfile":"fs86_FreeSurferLUT.txt", "displayvolume":"fs86_dil1_allsubj_mode.nii.gz", "parcfile_dilated_format":"fs86_dil%d_allsubj.npz"}, 
 {"name":"fs86dil3subj", "parcfile":"fs86_dil3_allsubj.npz", "labeltextfile":"fs86_FreeSurferLUT.txt", "displayvolume":"fs86_dil1_allsubj_mode.nii.gz"}, 
