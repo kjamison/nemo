@@ -16,6 +16,7 @@ def argument_parse(argv):
     parser.add_argument('--parcellation','-p',dest='parcellation',help='Parcellation to fill')
     parser.add_argument('--maxpercentile',action='store',type=float,help='colormap maximum')
     parser.add_argument('--maxscale',action='store',type=float,help='colormap maximum')
+    parser.add_argument('--maxvalue',action='store',type=float,help='colormap maximum')
     
     args=parser.parse_args(argv)
     
@@ -81,7 +82,7 @@ def parcellation_to_volume(parcdata, parcvol):
     
     return newvol
 
-def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None, maxpercentile=None, maxscale=None):
+def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None, maxpercentile=None, maxscale=None, maxvalue=None):
     avgdata, imgshape = average_input_list(inputlist, binarize=binarize)
     
     if outputfile is None:
@@ -96,7 +97,9 @@ def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_
         avgdata=parcellation_to_volume(avgdata,parcvol)
 
     vmax=None
-    if maxscale is not None:
+    if maxvalue is not None:
+        vmax=maxvalue
+    elif maxscale is not None:
         vmax=maxscale*np.max(avgdata)
     elif maxpercentile is not None:
         vmax=np.percentile(avgdata,maxpercentile)
@@ -109,7 +112,7 @@ def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_
 if __name__ == "__main__":
     args=argument_parse(sys.argv[1:])
     imgshape=save_glassbrain(args.outfile,args.volumefile,binarize=args.binarize,colormap=args.colormap,
-        parcellation_file=args.parcellation,maxpercentile=args.maxpercentile,maxscale=args.maxscale)
+        parcellation_file=args.parcellation,maxpercentile=args.maxpercentile,maxscale=args.maxscale,maxvalue=args.maxvalue)
     if imgshape is None:
         #mismatched input sizes
         sys.exit(1)
