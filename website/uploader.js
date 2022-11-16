@@ -234,6 +234,11 @@ function showUploader(run_internal_script) {
         extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
         '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores)</label><br/>'].join('\n');
         
+        
+        //For now, lets only offer this option for debugging purposes
+        extra_accum_html+=['<input type="checkbox" id="continuous" name="continuous" value="1">',
+        '<label for="continuous">Use continuous values for input lesion (do not binarize)</label><br/>'].join('\n');
+        
         if(default_endpointmask_checked)
             maskcheckstr="1"
         else
@@ -260,7 +265,7 @@ function showUploader(run_internal_script) {
         '</div><br/>',
         upload_note_html,
         '<div id="mninote" class="mninote">',
-        'Note: Lesion mask must be in 1mm MNI152 space (same as FSL MNI152_T1_1mm.nii.gz or SPM avg152.nii)<br/>',
+        'Note: Lesion mask must be in 1mm MNI152v6 space (same as FSL <a href="https://github.com/kjamison/nemo/blob/master/website/atlases/MNI152_T1_1mm_brain.nii.gz?raw=true">MNI152_T1_1mm_brain.nii.gz</a> or SPM avg152.nii)<br/>',
         'Voxel dimension should be 182x218x182 (or 181x217x181 for SPM)<br/>',
         '</div>',
         '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
@@ -602,6 +607,10 @@ function submitMask() {
     if(document.getElementById("cumulative"))
         cumulative = document.getElementById("cumulative").checked;
     
+    var continuous = false;
+    if(document.getElementById("continuous"))
+        continuous = document.getElementById("continuous").checked;
+    
     var tracking_algo = null
     if(document.getElementById("tracking_algorithm_select"))
         tracking_algo=document.getElementById("tracking_algorithm_select").value;
@@ -774,7 +783,8 @@ function submitMask() {
     if (debug_input) taglist.push({Key: 'debug', Value: debug_input.checked});
     
     var config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
-    config_taglist=config_taglist.concat([{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative}]);
+    config_taglist=config_taglist.concat([{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative},
+        {Key: 'continuous', Value: continuous}]);
     
     if (tracking_algo)
         config_taglist=config_taglist.concat([{Key: 'tracking_algorithm', Value: tracking_algo}]);
@@ -787,7 +797,7 @@ function submitMask() {
     
     // Add cocopassword and output location to taglist AFTER we copy taglist into config_taglist
     // so that the cocopassword is NOT in the config FILE, only in the S3 object tag
-    if (cocopassword) taglist.push({Key: 'coco_password', Value: cocopassword.value});
+    if (cocopassword) taglist.push({Key: 'coco_password', Value: "enc:"+window.btoa(cocopassword.value)});
     if (outputlocation) taglist.push({Key: 'outputlocation', Value: outputlocation.value});
     //////////////////////////////////////////////////////////
     var jsonse=JSON.stringify(config_taglist);

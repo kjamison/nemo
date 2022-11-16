@@ -232,7 +232,11 @@ def lambda_handler(raw_event, context):
                 
             #check if password was entered and matches
             if 'coco_password' in s3tagdict: 
-                if s3tagdict['coco_password'] == COCO_PASSWORD:
+                coco_password_input=s3tagdict['coco_password']
+                #if password was passed as "enc:*", its base64 encoded, so decode it now
+                if coco_password_input.startswith("enc:"):
+                    coco_password_input=base64.b64decode(coco_password_input[4:]).decode("ascii")
+                if coco_password_input == COCO_PASSWORD:
                     if 'outputlocation' in s3tagdict:
                         s3tagdict['s3direct_outputlocation']=s3tagdict['outputlocation']
                     S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'success', Tagging='password_status=success')
