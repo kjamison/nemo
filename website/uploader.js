@@ -72,7 +72,9 @@ var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', descr
     '7': {name:'7 mm', thumbnail:'images/thumbnail_res7mm.png', description:'26x32x26 (21632 voxels), 6103 streamline endpoint voxels', regioncount: Infinity},
     '8': {name:'8 mm', thumbnail:'images/thumbnail_res8mm.png', description:'23x28x23 (14812 voxels), 4234 streamline endpoint voxels', regioncount: Infinity},
     '9': {name:'9 mm', thumbnail:'images/thumbnail_res9mm.png', description:'21x25x21 (11025 voxels), 3054 streamline endpoint voxels', regioncount: Infinity},
-    '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels', regioncount: Infinity}
+    '10': {name:'10 mm', thumbnail:'images/thumbnail_res10mm.png', description:'19x22x19 (7942 voxels), 2280 streamline endpoint voxels', regioncount: Infinity},
+    '20': {name:'20 mm', thumbnail:'images/thumbnail_res20mm.png', description:'10x11x10 (1100 voxels), 358 streamline endpoint voxels', regioncount: Infinity},
+    '30': {name:'30 mm', thumbnail:'images/thumbnail_res30mm.png', description:'7x8x7 (392 voxels), 142 streamline endpoint voxels', regioncount: Infinity}
 };
 
 var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
