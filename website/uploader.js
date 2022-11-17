@@ -306,10 +306,10 @@ function showUploader(run_internal_script) {
         nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
         document.getElementById('version').innerHTML="NeMo vLOCAL"+gittxt;
     } else {
-        jsonurl='config/nemo-version.json';
+        jsonurl='config/nemo-version.json');
         let request = new XMLHttpRequest();
 
-        request.open('GET', jsonurl);
+        request.open('GET', jsonurl+'?r='+window.btoa(Math.random().toString());
         request.responseType = 'json'; // now we're getting a string!
         request.send();
 
