@@ -206,7 +206,7 @@ fi
 ###########
 
 #copy latest version of the lesion scripts
-scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py 
+scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py chacovol_to_nifti.py 
     nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py dilate_parcellation.py check_input_dimensions.py"
 
 if [ "${do_debug}" != "true" ]; then
@@ -273,6 +273,7 @@ output_keepdiaglist=""
 output_dilationlist=""
 output_roilistfile=""
 output_displayvollist=""
+output_ciftitemplatelist=""
 parcfile_testsize_list=""
 
 for o in $(echo ${output_prefix_list} | tr "," " "); do
@@ -291,11 +292,15 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
         out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
         out_dilation=$(jq --raw-output 'select(.Key=="'${o}_dilation'") | .Value' ${tagfile} | head -n1)
-                
+        out_numroi=$(jq --raw-output 'select(.Key=="'${o}_numroi'") | .Value' ${tagfile} | head -n1)
+        
         out_filename=
+        
+        out_filename_ciftitemplate=
         
         #only used for subject-specific parcellations
         out_filename_displayvol=
+        
         
         if [ "x${out_filekey}" != "x" ]; then
             out_filebasename=$(basename ${out_filekey})
@@ -353,12 +358,29 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 fi
             fi
             
+            out_numroi_atlaslist=$(echo $atlasline | jq --raw-output '.fullregioncount //empty')
+            if [ "x${out_numroi_atlaslist}" != x ]; then
+                #if atlas_list has a specified regioncount, override default or user input and pass this to script
+                #(note: this regioncount is to force outputs to [REGIONCOUNT x 1] instead of only [len(unique(regions))x1]
+                # which is needed for cifti, for instance)
+                out_numroi="${out_numroi_atlaslist}"
+            fi
+            
+            out_ciftitemplate_atlaslist=$(echo $atlasline | jq --raw-output '.ciftitemplate //empty')
+            if [ "x${out_ciftitemplate_atlaslist}" != x ]; then
+                out_filename_ciftitemplate="${out_ciftitemplate_atlaslist}"
+            fi
+            if [ "x${out_filename_ciftitemplate}" != x ]; then
+                out_filename_ciftitemplate=${atlasdir}/${out_filename_ciftitemplate}
+            fi
+            
             #subject-specific files have an extra entry for the display volume
             out_filename_displayvol=$(echo $atlasline | jq --raw-output '.displayvolume //empty')
             
             if [ "x${out_filename_displayvol}" != x ]; then
                 out_filename_displayvol=${atlasdir}/${out_filename_displayvol}
             fi
+            
             
             if [ ! -e ${out_filename} ]; then
                 #so we don't have to copy the giant subject-specific files unless we need them
@@ -377,9 +399,20 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 fi
             fi
             
-
+            if [ "x${out_filename_ciftitemplate}" != x ] && [ ! -e ${out_filename_ciftitemplate} ]; then
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_ciftitemplate}) ${out_filename_ciftitemplate} --no-progress
+                if [ ! -e ${out_filename_ciftitemplate} ]; then
+                    echo "Atlas ciftitemplate not found on S3: " $(basename ${out_filename_ciftitemplate})
+                    exit 1
+                fi
+            fi
             
-            out_roilistfile=${atlasdir}/$(echo $atlasline | jq --raw-output '.labeltextfile')
+            out_roilistfile=$(echo $atlasline | jq --raw-output '.labeltextfile //empty')
+            if [ "x${out_roilistfile}" = x ]; then
+                out_roilistfile="x" #make sure something goes into the list
+            else
+                out_roilistfile=${atlasdir}/${out_roilistfile}
+            fi
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
         fi
         if [ -e "${out_filename_displayvol}" ]; then
@@ -394,6 +427,9 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         if [ ${out_keepdiag} = "true" ]; then
             parcarg_tmp+="?keepdiag"
         fi
+        if [ "x${out_numroi}" != "x" ]; then
+            parcarg_tmp+="?numroi=${out_numroi}"
+        fi
 
         parcelarg+=" ${parcarg_tmp}"
         
@@ -405,6 +441,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
         out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
         out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
+        out_numroi=$(jq --raw-output 'select(.Key=="'${o}_numroi'") | .Value' ${tagfile} | head -n1)
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
         if [ ${out_pairwise} = "false" ]; then
@@ -412,6 +449,9 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         fi
         if [ ${out_keepdiag} = "true" ]; then
             resarg_tmp+="?keepdiag"
+        fi
+        if [ "x${out_numroi}" != "x" ]; then
+            resarg_tmp+="?numroi=${out_numroi}"
         fi
         resolutionarg+=" ${resarg_tmp}"
     fi
@@ -423,6 +463,11 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         #make sure we have something to append to the list
         out_filename_displayvol="x"
     fi
+    if [ "x${out_filename_ciftitemplate}" = x ]; then
+        #make sure we have something to append to the list
+        out_filename_ciftitemplate="x"
+    fi
+    
     
     output_namelist+=" ${out_name}"
     output_pairwiselist+=" ${out_pairwise}"
@@ -430,6 +475,8 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     output_keepdiaglist+=" ${out_keepdiag}"
     output_roilistfile+=" ${out_roilistfile}"
     output_displayvollist+=" ${out_filename_displayvol}"
+    output_ciftitemplatelist+=" ${out_filename_ciftitemplate}"
+    output_numroilist+=" ${out_numroi}"
 done
 pairwisearg="--pairwise" #FORCE nemo to use pairwise pipeline
 #remember: pairwise should be set to "--pairwise" if ANY output asks for it
@@ -577,6 +624,25 @@ while read inputfile; do
         outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC_mean.mat
         outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC_stdev.mat
         python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
+    done
+    
+    
+    #Save cifti files for any outputs with a cifti template
+    o=0
+    for out_name in ${output_namelist}; do
+        o=$((o+1))
+        #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
+        out_filename_ciftitemplate=$(echo ${output_ciftitemplatelist} | cut -d" " -f$o)
+        if [ "${out_filename_ciftitemplate}" = "x" ] || [ ! -e "${out_filename_ciftitemplate}" ]; then
+            continue
+        fi
+        
+        outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
+        [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_mean.dscalar.nii --in ${outfile}
+        
+        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
+        [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
+        
     done
     
     #generate glassbrain/matrix/graphbrain figures for all outputs for this lesion mask

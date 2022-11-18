@@ -20,6 +20,8 @@ var parclist=[];
 var default_allref_parc=true
 var default_allref_res_thresh=Infinity
 var default_pairwise_parc=true
+var default_pairwise_parc_regioncount_thresh=1000 //do pairwise by default unless parc has >thresh regions (eg cifti91k)
+var default_allref_parc_regioncount_thresh=1000 //do allref by default unless parc has >thresh regions (eg cifti91k)
 var default_pairwise_res_thresh=3
 var default_regionwise_keepdiag=false
 var default_regionwise_keepdiag_regionthresh=30 //keep diag by default if regioncount<=thresh
@@ -60,7 +62,8 @@ var atlasinfo_public = {'aal': {name: 'AAL', thumbnail:'images/thumbnail_aal.png
 };
 
 var atlasinfo_internal = {
-    'fs87bssubj': {name: 'FreeSurfer87bs-subj', thumbnail:'images/thumbnail_fs87bs.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (19 subcortical, including brainstem)', regioncount: 87}
+    'fs87bssubj': {name: 'FreeSurfer87bs-subj', thumbnail:'images/thumbnail_fs87bs.png',description:'Subject-specific Desikan-Killiany (68 cortical) + aseg (19 subcortical, including brainstem)', regioncount: 87},
+    'cifti91k': {name: 'HCP-2mm-cifti91k', thumbnail:'images/thumbnail_cifti91k.png',description:'Subject-specific HCP MSMAll 32k_fs_LR cifti space<br>32k L vertices + 32k R vertices + 32k subcortical voxels = 91282 endpoints (Glasser 2013)', regioncount: 91282}
 };
 
 var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', description:'182x218x182 (7221032 voxels), 1446468 streamline endpoint voxels', regioncount: Infinity},
@@ -76,6 +79,10 @@ var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', descr
     '20': {name:'20 mm', thumbnail:'images/thumbnail_res20mm.png', description:'10x11x10 (1100 voxels), 358 streamline endpoint voxels', regioncount: Infinity},
     '30': {name:'30 mm', thumbnail:'images/thumbnail_res30mm.png', description:'7x8x7 (392 voxels), 142 streamline endpoint voxels', regioncount: Infinity}
 };
+
+// these are more appropriately labeled as a "resolution" but needs to be processed like an atlas,
+// so do everything normally but list it under the "resolution" dropdown
+var atlas_to_include_as_res = ['cifti91k'];
 
 var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
     'ifod2act': {text: 'Probabilistic (iFOD2+ACT)',default: true}
@@ -208,6 +215,10 @@ function showUploader(run_internal_script) {
         '</div>'].join('\n');
     
     atlasinfo=atlasinfo_public;
+    
+    extra_internal_options_html='';
+    extra_local_options_html='';
+    
     if(run_internal_script){
         Object.assign(atlasinfo,atlasinfo_internal);
         extra_html+=['<label for="outputlocation">Copy to S3 location: s3://</label>',
@@ -218,9 +229,19 @@ function showUploader(run_internal_script) {
         upload_note_html=['<div id="mninote" class="mninote">',
             'You can upload a single NIfTI file, or a .zip file containing multiple NIfTI files.<br/>',
             '</div>'].join('\n');
+            
+    
+        //For now, lets only offer this option for debugging purposes
+        extra_internal_options_html+=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
+        '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores) <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
+    
+    
+        //For now, lets only offer this option for debugging purposes
+        extra_internal_options_html+=['<input type="checkbox" id="continuous" name="continuous" value="1">',
+        '<label for="continuous">Use continuous values for input lesion (do not binarize) <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
     }
     
-    extra_accum_html='';
+
     if(run_local_script){
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/>'].join('\n');
@@ -232,20 +253,12 @@ function showUploader(run_internal_script) {
         '<button id="set_all_dilations3" onclick="setAllDilations(3)">Dilation 3</button>',
         '<br/><br/>'].join('\n');
         
-        //For now, lets only offer this option for debugging purposes
-        extra_accum_html=['<input type="checkbox" id="cumulative" name="cumulative" value="1">',
-        '<label for="cumulative">Accumulate total hits along streamline (Much smaller ChaCo scores)</label><br/>'].join('\n');
-        
-        
-        //For now, lets only offer this option for debugging purposes
-        extra_accum_html+=['<input type="checkbox" id="continuous" name="continuous" value="1">',
-        '<label for="continuous">Use continuous values for input lesion (do not binarize)</label><br/>'].join('\n');
         
         if(default_endpointmask_checked)
             maskcheckstr="1"
         else
             maskcheckstr="0"
-        extra_accum_html+=['<input type="checkbox" id="endpointmask_checkbox" name="endpointmask_checkbox" value="'+maskcheckstr+'">',
+        extra_local_options_html+=['<input type="checkbox" id="endpointmask_checkbox" name="endpointmask_checkbox" value="'+maskcheckstr+'">',
         '<label for="endpointmask_checkbox">Ignore streamlines that terminate in white-matter</label><br/>'].join('\n');
         
         
@@ -273,7 +286,8 @@ function showUploader(run_internal_script) {
         '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
         '<br/>',
         'General options:<br/>',
-        extra_accum_html,
+        extra_internal_options_html,
+        extra_local_options_html,
         '<input type="checkbox" id="siftweights" name="siftweights" value="1" checked>',
         '<label for="siftweights">Weight streamlines by data fit (SIFT2)</label><br/>',
         '<input type="checkbox" id="smoothing" name="smoothing" value="1" checked>',
@@ -306,10 +320,10 @@ function showUploader(run_internal_script) {
         nemo_version_info={nemo_version: "LOCAL", nemo_version_date: "TODAY"};
         document.getElementById('version').innerHTML="NeMo vLOCAL"+gittxt;
     } else {
-        jsonurl='config/nemo-version.json');
+        jsonurl='config/nemo-version.json';
         let request = new XMLHttpRequest();
 
-        request.open('GET', jsonurl+'?r='+window.btoa(Math.random().toString());
+        request.open('GET', jsonurl+'?r='+window.btoa(Math.random().toString()));
         request.responseType = 'json'; // now we're getting a string!
         request.send();
 
@@ -390,6 +404,12 @@ function getResolutionSelectHtml(id){
     for(var i=0; i<resnames.length; i++){
         htmlTemplate.push('<option value="'+resnames[i]+'">'+resinfo[resnames[i]]['name']+'</option>');
     }
+    for(var i=0; i<atlas_to_include_as_res.length; i++){
+        if(!atlasinfo[atlas_to_include_as_res[i]])
+            continue
+        htmlTemplate.push('<option value="'+atlas_to_include_as_res[i]+'">'+atlasinfo[atlas_to_include_as_res[i]]['name']+'</option>');
+    }
+
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
 }
@@ -400,9 +420,10 @@ function getParcSelectHtml(id){
     htmlTemplate.push('<option value="custom">[Upload custom atlas]</option>');
     atlasnames=Object.keys(atlasinfo);
     for(var i = 0; i < atlasnames.length; i++){
+        if(atlas_to_include_as_res.indexOf(atlasnames[i])>=0)
+            continue;
         htmlTemplate.push('<option value="'+atlasnames[i]+'">'+atlasinfo[atlasnames[i]]['name']+'</option>');
     }
-
 
     htmlTemplate.push('</select>');
     return htmlTemplate.join("\n");
@@ -435,6 +456,8 @@ function addOutput(parc_or_res, select_id, init1mm){
     var pairwisechecked=""
     var keepdiagchecked=""
 
+    parc_or_res_orig=parc_or_res;
+    
     if(init1mm){
         var selvalue="1";
         var seltext="1 mm";
@@ -445,7 +468,12 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         }
         var seltext=myselect.options[myselect.options.selectedIndex].text;
-
+        
+        if(atlasinfo[selvalue]){
+            //in the case where we passed cifti parc from the "res" dropdown, proceed as parc
+            parc_or_res='parc';
+        }
+            
         //if regioncount is available for this output, retrieve the value. We will use it 
         //to decide if keepdiag should be checked (eg: for Yeo7)
         regioncount=Infinity;
@@ -457,8 +485,8 @@ function addOutput(parc_or_res, select_id, init1mm){
         
         //by default, only set "allref" for parcellations
         if(parc_or_res=="parc"){
-            if(default_allref_parc) allrefchecked="checked";
-            if(default_pairwise_parc) pairwisechecked="checked";
+            if(default_allref_parc && regioncount<=default_allref_parc_regioncount_thresh) allrefchecked="checked";
+            if(default_pairwise_parc && regioncount<=default_pairwise_parc_regioncount_thresh) pairwisechecked="checked";
             if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
         } else if(parc_or_res=="res"){
             if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
@@ -478,7 +506,7 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         reslist.push(selvalue);
     }
-    var parentdiv = document.getElementById(parc_or_res+"div");
+    var parentdiv = document.getElementById(parc_or_res_orig+"div");
     
     var newid=getNextAvailableId("add"+parc_or_res,1);
     var newindex=newid.replace("add"+parc_or_res,"");
@@ -516,8 +544,16 @@ function addOutput(parc_or_res, select_id, init1mm){
             if (atlasinfo[selvalue]['defaultdilation'] !== undefined){
                 dilsel_thisdefault=atlasinfo[selvalue]['defaultdilation'];
             }
-            htmlTemplate.push('<b>Parcellation: '+seltext+'</b>'+parc_description,
+            seltype_txt='Parcellation';
+            if (parc_or_res_orig=='res')
+                seltype_txt='Resolution';
+            
+            htmlTemplate.push('<b>'+seltype_txt+': '+seltext+'</b>'+parc_description,
             '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
+            
+            if(atlasinfo[selvalue]['force_regioncount']){
+                htmlTemplate.push('<input id="'+newid+'_forceroicount" type="hidden" value="'+atlasinfo[selvalue]['regioncount']+'">');
+            }
         }
         
         var dilsel=newid+"_dilselect";
@@ -528,6 +564,9 @@ function addOutput(parc_or_res, select_id, init1mm){
             dilhtml_tmp=getParcDilationHtml(dilsel);
         
         dilsel_html='<label for="'+dilsel+'">Dilate parcels by:</label> ' +  dilhtml_tmp + "<br>";
+        
+
+
         
     } else if (parc_or_res=="res") {
         if(resinfo[selvalue] && resinfo[selvalue]['thumbnail'])
@@ -652,6 +691,7 @@ function submitMask() {
         var this_customname=document.getElementById(this_id+"_customname");
         var this_name=document.getElementById(this_id+"_name");
         var this_filenode=document.getElementById(this_id+"_fileupload");
+        var this_forceroicount=document.getElementById(this_id+"_forceroicount");
         
         if(this_customname != null)
             this_name=this_customname.value;
@@ -663,6 +703,10 @@ function submitMask() {
         else
             this_dilation=null
         
+        this_forceroicount_value=null
+        if(this_forceroicount != null)
+            this_forceroicount_value=this_forceroicount.value;
+            
         var this_newkey=""
         if (this_filenode != null){
             if(!this_filenode.files.length){
@@ -726,6 +770,9 @@ function submitMask() {
             
             if(this_newkey.length>0)
                 outputs_taglist.push({Key: this_prefix+"_filekey", Value: this_newkey});
+            
+            if(this_forceroicount_value != null)
+                outputs_taglist.push({Key: this_prefix+"_numroi", Value: this_forceroicount_value});
         }
         outputs_prefixlist.push(this_prefix);
         //console.log(this_id, this_pairwise, this_output_allref, this_name);

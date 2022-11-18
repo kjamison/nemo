@@ -23,5 +23,6 @@
 {"name":"cocolaus157dil3subj", "parcfile":"cocolaus157_dil3_allsubj.npz", "labeltextfile":"cocolaus157_LUT.txt", "displayvolume":"cocolaus157_dil1_allsubj_mode.nii.gz"}, 
 {"name":"cocolaus262subj", "parcfile":"cocolaus262_dil1_allsubj.npz", "labeltextfile":"cocolaus262_LUT.txt", "displayvolume":"cocolaus262_dil1_allsubj_mode.nii.gz","parcfile_dilated_format":"cocolaus262_dil%d_allsubj.npz"}, 
 {"name":"cocolaus491subj", "parcfile":"cocolaus491_dil1_allsubj.npz", "labeltextfile":"cocolaus491_LUT.txt", "displayvolume":"cocolaus491_dil1_allsubj_mode.nii.gz","parcfile_dilated_format":"cocolaus491_dil%d_allsubj.npz"},
-{"name":"fs87bssubj", "parcfile":"fs87bs_dil1_allsubj.npz", "labeltextfile":"fs87bs_FreeSurferLUT.txt", "displayvolume":"fs87bs_dil1_allsubj_mode.nii.gz", "parcfile_dilated_format":"fs87bs_dil%d_allsubj.npz"}
+{"name":"fs87bssubj", "parcfile":"fs87bs_dil1_allsubj.npz", "labeltextfile":"fs87bs_FreeSurferLUT.txt", "displayvolume":"fs87bs_dil1_allsubj_mode.nii.gz", "parcfile_dilated_format":"fs87bs_dil%d_allsubj.npz"},
+{"name":"cifti91k", "parcfile":"cifti91k_dil1_allsubj.npz", "displayvolume":"S1200_MSMAll_cifti91k_1mm.nii.gz", "parcfile_dilated_format":"cifti91k_dil%d_allsubj.npz","fullregioncount":91282,"ciftitemplate":"91282_Greyordinates_indices.dscalar.nii"}
 ]

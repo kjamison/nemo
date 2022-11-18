@@ -400,6 +400,12 @@ def parcellation_to_volume(parcdata, parcvol):
         pass
     elif parcdata.shape[1] == len(uparc):
         parcdata=parcdata.T
+    elif parcdata.shape[0] >= max(uparc):
+        #this happens if input is cifti91k (full 0-91282) and parcvol does not have all of those indices
+        parcdata=parcdata[uparc.astype(np.uint32)-1,:]
+    elif parcdata.shape[1] >= max(uparc):
+        #this happens if input is cifti91k (full 0-91282) and parcvol does not have all of those indices
+        parcdata=parcdata[:,uparc.astype(np.uint32)-1].T
     else:
         print("Parcellated data dimensions do not match parcellation")
         return None
@@ -743,6 +749,7 @@ if __name__ == "__main__":
             p_pairwise=do_pairwise
             p_keepdiag=False
             p_displayvol=None
+            p_numroi=None
             if p.find("?") >= 0:
                 #handle ?nopairwise option
                 p_opts=p.split("?")[1:]
@@ -754,6 +761,12 @@ if __name__ == "__main__":
                 if any([x.startswith("displayvol=") for x in p_opts]):
                     displayvolfile=[x.split("=")[1] for x in p_opts if x.startswith("displayvol=")][0]
                     p_displayvol=nib.load(displayvolfile)
+                if any([x.startswith("numroi=") for x in p_opts]):
+                    p_numroi_str=[x.split("=")[1] for x in p_opts if x.startswith("numroi=")][0]
+                    try:
+                        p_numroi=int(p_numroi_str)
+                    except ValueError:
+                        p_numroi=None
             if p.find("=") >= 0:
                 [pfile,pname]=p.split("=")
             else:
@@ -766,6 +779,8 @@ if __name__ == "__main__":
                 numroisubj=Psparse_allsubj.shape[0]
             
                 max_seq_roi_val=Psparse_allsubj.max()
+                if p_numroi is not None:
+                    max_seq_roi_val=np.array(p_numroi)
                 #store these as csc for memory efficiency (have to convert each subject later)
                 def flat2sparse(isubj):
                     return flatParcellationToTransform(Psparse_allsubj, isubj, out_type="csc", max_sequential_roi_value=max_seq_roi_val)
@@ -792,7 +807,11 @@ if __name__ == "__main__":
                 Pimg = checkVolumeShape(Pimg, refimg, pfile.split("/")[-1], expected_shape, expected_shape_spm)
                 Pdata=Pimg.get_fdata()
             
-                Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr")
+                max_seq_roi_val=None
+                if p_numroi is not None:
+                    max_seq_roi_val=np.array(p_numroi)
+                
+                Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr", max_sequential_roi_value=max_seq_roi_val)
                 numroi = Psparse.shape[1]
             
             

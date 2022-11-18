@@ -73,6 +73,12 @@ def parcellation_to_volume(parcdata, parcvol):
         pass
     elif parcdata.shape[1] == len(uparc):
         parcdata=parcdata.T
+    elif parcdata.shape[0] >= max(uparc):
+        #this happens if input is cifti91k (full 0-91282) and parcvol does not have all of those indices
+        parcdata=parcdata[uparc.astype(np.uint32)-1,:]
+    elif parcdata.shape[1] >= max(uparc):
+        #this happens if input is cifti91k (full 0-91282) and parcvol does not have all of those indices
+        parcdata=parcdata[:,uparc.astype(np.uint32)-1].T
     else:
         print("Input data dimensions do not match parcellation")
         exit(1)

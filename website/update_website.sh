@@ -24,6 +24,7 @@ aws s3 cp ${SCRIPTDIR}/../nemo_save_average_glassbrain.py s3://${WEBSITE_S3}/nem
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_matrix_figure.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../nemo_save_average_graphbrain.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../chacoconn_to_nemosc.py s3://${WEBSITE_S3}/nemo_scripts/
+aws s3 cp ${SCRIPTDIR}/../chacovol_to_nifti.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../dilate_parcellation.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 cp ${SCRIPTDIR}/../check_input_dimensions.py s3://${WEBSITE_S3}/nemo_scripts/
 aws s3 sync ${SCRIPTDIR}/config s3://${WEBSITE_S3}/config
