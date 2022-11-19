@@ -307,6 +307,9 @@ function showUploader(run_internal_script) {
         '<div id="uploadstatus"></div><div id="uploadstatusimage"></div>'
     ];
     document.getElementById("app").innerHTML = htmlTemplate.join("\n");
+    document.getElementById('fileupload').onclick = function(){ 
+        this.value=null;
+    }
     document.getElementById('fileupload').onchange = function(){
         var filesize = document.getElementById('fileupload').files[0].size;
         document.getElementById('filesize').innerHTML="(" + filesizestring(filesize) + ")";
