@@ -33,6 +33,8 @@ var min_parc_dilation=0;
 var max_parc_dilation=3;
 var default_parc_dilation=1;
 
+var is_internal_script=false;
+
 //these atlases are deprecated since people should be using the -subj version anyway
 var atlasinfo_oldavg = {'fs86avg': {name: 'FreeSurfer86-avg', thumbnail:'images/thumbnail_fs86.png',description:'Subject-averaged Desikan-Killiany (68 cortical) + aseg (18 subcortical, no brainstem).<br/>Note: Less precise than FreeSurfer86-subj', regioncount: 86},
      'cocommp438avg': {name: 'CocoMMP438-avg','thumbnail':'images/thumbnail_cocommp438.png',description:  'Subject-averaged Glasser MMP (358 cortical), aseg (12 subcortical), FreeSurfer7 thalamic nuclei (30), AAL3v1 subcort nuclei (12), AAL3v1 cerebellum (26)', regioncount: 438},
@@ -208,6 +210,7 @@ function checkBucketStatus(bucket, key, statusdiv, password_success_message, val
 function showUploader(run_internal_script) {
     if (run_internal_script === undefined) run_internal_script = false; //is user on internal site?
     run_local_script = document.URL.startsWith("file:///"); //is user on LOCAL (testing/debugging) site?
+    is_internal_script=run_internal_script;
     
     extra_html='';
     upload_note_html=['<div id="mninote" class="mninote">',
@@ -459,6 +462,7 @@ function addOutput(parc_or_res, select_id, init1mm){
     var pairwisechecked=""
     var keepdiagchecked=""
     var pairwise_disabled=""
+    var pairwise_override_input=""
 
     parc_or_res_orig=parc_or_res;
     
@@ -586,13 +590,18 @@ function addOutput(parc_or_res, select_id, init1mm){
         '<input id="'+newid+'_name" type="hidden" value="'+selvalue+'">');
     }
     
+    
+    if(pairwise_disabled && is_internal_script){
+        pairwise_override_input='&nbsp;<a href="javascript:void(0);" onclick="document.getElementById(\''+newid+'_pairwise\').disabled=false;" style="color:red">[Override (not recommended)]</a>';
+    }
+    
     htmlTemplate.push('<br/>',
         dilsel_html,
         '<input type="checkbox" id="'+newid+'_keepdiag" name="'+newid+'_keepdiag" value="1" '+keepdiagchecked+'>',
         '<label for="'+newid+'_keepdiag">Count streamlines that start and end in the same ROI in region-wise output</label><br/>',
         
         '<input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+pairwise_disabled+'>',
-        '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label><br/>',
+        '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label>'+pairwise_override_input+'<br/>',
         
         '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" '+allrefchecked+'>',
         '<label for="'+newid+'_output_allref">Output ChaCo for each reference subject (large file size)</label><br/>');
