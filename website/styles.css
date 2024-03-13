@@ -85,6 +85,11 @@ body {
 .bigbutton {
     font-size: 14pt;
 }
+
+input[type=checkbox]:disabled+label {
+  color: #ccc;
+}
+
 .statustext_good {
     color: darkgreen;
     background-color: lightgreen;

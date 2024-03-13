@@ -458,6 +458,7 @@ function addOutput(parc_or_res, select_id, init1mm){
     var allrefchecked=""
     var pairwisechecked=""
     var keepdiagchecked=""
+    var pairwise_disabled=""
 
     parc_or_res_orig=parc_or_res;
     
@@ -475,6 +476,7 @@ function addOutput(parc_or_res, select_id, init1mm){
         if(atlasinfo[selvalue]){
             //in the case where we passed cifti parc from the "res" dropdown, proceed as parc
             parc_or_res='parc';
+        }
         }
             
         //if regioncount is available for this output, retrieve the value. We will use it 
@@ -494,10 +496,11 @@ function addOutput(parc_or_res, select_id, init1mm){
         } else if(parc_or_res=="res"){
             if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
             if(selvalue>=default_pairwise_res_thresh) pairwisechecked="checked";
+        if(selvalue<default_pairwise_res_thresh) pairwise_disabled=" disabled";
             if(default_regionwise_keepdiag) keepdiagchecked="checked";
             if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
         }
-    }
+    
     if(select_id)
         document.getElementById(select_id).selectedIndex=0;
     if (parc_or_res=="parc" && selvalue != "custom" ){
@@ -587,8 +590,10 @@ function addOutput(parc_or_res, select_id, init1mm){
         dilsel_html,
         '<input type="checkbox" id="'+newid+'_keepdiag" name="'+newid+'_keepdiag" value="1" '+keepdiagchecked+'>',
         '<label for="'+newid+'_keepdiag">Count streamlines that start and end in the same ROI in region-wise output</label><br/>',
-        '<input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+'>',
+        
+        '<input type="checkbox" id="'+newid+'_pairwise" name="'+newid+'_pairwise" value="1" '+pairwisechecked+pairwise_disabled+'>',
         '<label for="'+newid+'_pairwise">Compute pairwise disconnectivity</label><br/>',
+        
         '<input type="checkbox" id="'+newid+'_output_allref" name="'+newid+'_output_allref" value="1" '+allrefchecked+'>',
         '<label for="'+newid+'_output_allref">Output ChaCo for each reference subject (large file size)</label><br/>');
     
