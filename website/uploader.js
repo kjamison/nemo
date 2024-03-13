@@ -481,29 +481,29 @@ function addOutput(parc_or_res, select_id, init1mm){
             //in the case where we passed cifti parc from the "res" dropdown, proceed as parc
             parc_or_res='parc';
         }
-        }
-            
-        //if regioncount is available for this output, retrieve the value. We will use it 
-        //to decide if keepdiag should be checked (eg: for Yeo7)
-        regioncount=Infinity;
-        if (atlasinfo[selvalue]){
-            regioncount=atlasinfo[selvalue]["regioncount"];
-        } else if (resinfo[selvalue]) {
-            regioncount=resinfo[selvalue]["regioncount"];
-        }
-        
-        //by default, only set "allref" for parcellations
-        if(parc_or_res=="parc"){
-            if(default_allref_parc && regioncount<=default_allref_parc_regioncount_thresh) allrefchecked="checked";
-            if(default_pairwise_parc && regioncount<=default_pairwise_parc_regioncount_thresh) pairwisechecked="checked";
-            if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
-        } else if(parc_or_res=="res"){
-            if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
-            if(selvalue>=default_pairwise_res_thresh) pairwisechecked="checked";
+    }
+    
+    //if regioncount is available for this output, retrieve the value. We will use it 
+    //to decide if keepdiag should be checked (eg: for Yeo7)
+    regioncount=Infinity;
+    if (atlasinfo[selvalue]){
+        regioncount=atlasinfo[selvalue]["regioncount"];
+    } else if (resinfo[selvalue]) {
+        regioncount=resinfo[selvalue]["regioncount"];
+    }
+    
+    //by default, only set "allref" for parcellations
+    if(parc_or_res=="parc"){
+        if(default_allref_parc && regioncount<=default_allref_parc_regioncount_thresh) allrefchecked="checked";
+        if(default_pairwise_parc && regioncount<=default_pairwise_parc_regioncount_thresh) pairwisechecked="checked";
+        if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
+    } else if(parc_or_res=="res"){
+        if(selvalue>=default_allref_res_thresh) allrefchecked="checked";
+        if(selvalue>=default_pairwise_res_thresh) pairwisechecked="checked";
         if(selvalue<default_pairwise_res_thresh) pairwise_disabled=" disabled";
-            if(default_regionwise_keepdiag) keepdiagchecked="checked";
-            if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
-        }
+        if(default_regionwise_keepdiag) keepdiagchecked="checked";
+        if(default_regionwise_keepdiag || regioncount<=default_regionwise_keepdiag_regionthresh) keepdiagchecked="checked";
+    }
     
     if(select_id)
         document.getElementById(select_id).selectedIndex=0;
