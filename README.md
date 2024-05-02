@@ -4,6 +4,8 @@ Predict brain network disruption from a lesion mask. Original concept described 
 
 **NEW!** Cloud interface for this tool can be used here: [https://kuceyeski-wcm-web.s3.amazonaws.com/nemo/index.html](https://kuceyeski-wcm-web.s3.amazonaws.com/nemo/index.html)
 
+[![DOI](https://zenodo.org/badge/256588776.svg)](https://zenodo.org/doi/10.5281/zenodo.11106577)
+
 # Contents
 1. [Workflow overview](#workflow-overview)
 2. [Inputs](#inputs)
