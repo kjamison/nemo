@@ -2,6 +2,8 @@
 # NeMo 2.1 - Network Modification Tool
 Predict brain network disruption from a lesion mask. Original concept described in [Kuceyeski 2013](https://pubmed.ncbi.nlm.nih.gov/23855491/).
 
+**NEW!** Cloud interface for this tool can be used here: [https://kuceyeski-wcm-web.s3.amazonaws.com/nemo/index.html](https://kuceyeski-wcm-web.s3.amazonaws.com/nemo/index.html)
+
 # Contents
 1. [Workflow overview](#workflow-overview)
 2. [Inputs](#inputs)

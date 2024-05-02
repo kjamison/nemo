@@ -53,7 +53,6 @@ function randupload {
 
 #echo "CURRENTLY SKIPPING" 
 backup_and_upload ${SCRIPTDIR}/../nemo_lesion_to_chaco.py s3://${WEBSITE_S3}/nemo_scripts/
-backup_and_upload ${SCRIPTDIR}/../nemo_lesion_to_chaco.py s3://${WEBSITE_S3}/nemo_scripts/
 backup_and_upload ${SCRIPTDIR}/../nemo_save_average_glassbrain.py s3://${WEBSITE_S3}/nemo_scripts/
 backup_and_upload ${SCRIPTDIR}/../nemo_save_average_matrix_figure.py s3://${WEBSITE_S3}/nemo_scripts/
 backup_and_upload ${SCRIPTDIR}/../nemo_save_average_graphbrain.py s3://${WEBSITE_S3}/nemo_scripts/
@@ -75,6 +74,7 @@ aws s3 sync ${SCRIPTDIR}/atlases s3://${NEMODATA_S3}/nemo_atlases
 #replace src="./uploader.js" with src="./uploader.js?r=<randomvalue>" so the javascript doesn't get cached
 backup_and_upload ${SCRIPTDIR}/upload.html s3://${WEBSITE_S3}/ "uploader.js"
 backup_and_upload ${SCRIPTDIR}/upload_internal.html s3://${WEBSITE_S3}/ "uploader.js"
+backup_and_upload ${SCRIPTDIR}/index.html s3://${WEBSITE_S3}/nemo/
 
 aws s3 sync ${SCRIPTDIR}/images s3://${WEBSITE_S3}/images/
 
