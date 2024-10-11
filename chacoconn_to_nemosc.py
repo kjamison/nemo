@@ -45,9 +45,12 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
                 roivol=roivol[:,-C[0].shape[0]:]
         elif roivolfile.lower().endswith(".mat"):
             roivol_data=loadmat(roivolfile, mat_dtype=True) #try to avoid the float->int conversion
-            roivol=roivol_data['roivol']
+            if 'roivoxelcount' in roivol_data:
+                roivol=roivol_data['roivoxelcount']
+            elif 'roivol' in roivol_data:
+                roivol=roivol_data['roivol']
         else:
-            print("Unknown file format for roivol: %s" % (roifilevol))
+            print("Unknown file format for roivol: %s" % (roivolfile))
             exit(1)
         
         #sometimes loadmat converts values to uint16 automatically?
@@ -76,6 +79,7 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
     # and then element-wise divide the estimated SC by this new volume normalization matrix
     if roivolmat is not None and len(roivolmat.shape)==3:
         SC=SC/roivolmat
+        SC[roivolmat==0]=0
     
     #compute the mean estimated SC (RxR) across all ref subjects
     SCmean=np.mean(SC,axis=2)

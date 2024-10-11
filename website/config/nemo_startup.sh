@@ -274,6 +274,8 @@ output_dilationlist=""
 output_roilistfile=""
 output_displayvollist=""
 output_ciftitemplatelist=""
+output_roisizelist=""
+output_numroilist=""
 parcfile_testsize_list=""
 
 for o in $(echo ${output_prefix_list} | tr "," " "); do
@@ -297,6 +299,8 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         out_filename=
         
         out_filename_ciftitemplate=
+        
+        out_filename_roisize=
         
         #only used for subject-specific parcellations
         out_filename_displayvol=
@@ -374,9 +378,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 out_filename_ciftitemplate=${atlasdir}/${out_filename_ciftitemplate}
             fi
             
+            #some atlases have precomputed region volumes (in native space, not MNI)
+            out_roisize_atlaslist=$(echo $atlasline | jq --raw-output '.region_sizes //empty')
+            if [ "x${out_roisize_atlaslist}" != x ]; then
+                out_filename_roisize=${atlasdir}/${out_roisize_atlaslist}
+            fi
+            
             #subject-specific files have an extra entry for the display volume
             out_filename_displayvol=$(echo $atlasline | jq --raw-output '.displayvolume //empty')
-            
             if [ "x${out_filename_displayvol}" != x ]; then
                 out_filename_displayvol=${atlasdir}/${out_filename_displayvol}
             fi
@@ -403,6 +412,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_ciftitemplate}) ${out_filename_ciftitemplate} --no-progress
                 if [ ! -e ${out_filename_ciftitemplate} ]; then
                     echo "Atlas ciftitemplate not found on S3: " $(basename ${out_filename_ciftitemplate})
+                    exit 1
+                fi
+            fi
+            
+            if [ "x${out_filename_roisize}" != x ] && [ ! -e ${out_filename_roisize} ]; then
+                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_roisize}) ${out_filename_roisize} --no-progress
+                if [ ! -e ${out_filename_roisize} ]; then
+                    echo "Atlas region size not found on S3: " $(basename ${out_filename_roisize})
                     exit 1
                 fi
             fi
@@ -467,7 +484,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         #make sure we have something to append to the list
         out_filename_ciftitemplate="x"
     fi
-    
+    if [ "x${out_filename_roisize}" = x ]; then
+        #make sure we have something to append to the list
+        out_filename_roisize="x"
+    fi
     
     output_namelist+=" ${out_name}"
     output_pairwiselist+=" ${out_pairwise}"
@@ -476,6 +496,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     output_roilistfile+=" ${out_roilistfile}"
     output_displayvollist+=" ${out_filename_displayvol}"
     output_ciftitemplatelist+=" ${out_filename_ciftitemplate}"
+    output_roisizelist+=" ${out_filename_roisize}"
     output_numroilist+=" ${out_numroi}"
 done
 pairwisearg="--pairwise" #FORCE nemo to use pairwise pipeline
@@ -615,15 +636,28 @@ while read inputfile; do
     for out_name in ${output_namelist}; do
         o=$((o+1))
         out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+        out_filename_roisize=$(echo ${output_roisizelist} | cut -d" " -f$o)
         outfile_allref=${outputbase_infile}_chacoconn_${out_name}_allref.pkl
         outfile_denom=${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
         if [ "${out_pairwise}" = "false" ] || [ ! -e "${outfile_allref}" ] || [ ! -e "${outfile_denom}" ]; then
             continue;
         fi
         
-        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC_mean.mat
-        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC_stdev.mat
+        siftstr=""
+        if [ "${do_siftweights}" = "true" ]; then
+            siftstr="_sift2"
+        fi
+        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
+        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_stdev.mat
         python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
+        
+        #if a file was provided with region volume information, use that to produce a volnorm version of the nemoSC
+        if [ "${out_filename_roisize}" = "x" ] || [ ! -e "${out_filename_roisize}" ]; then
+            continue
+        fi
+        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
+        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
+        python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
     done
     
     
