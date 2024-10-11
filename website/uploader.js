@@ -87,7 +87,8 @@ var resinfo = {'1': {name:'1 mm', thumbnail:'images/thumbnail_res1mm.png', descr
 var atlas_to_include_as_res = ['cifti91k'];
 
 var tracking_algo_info = {'sdstream': {text: 'Deterministic (SD_STREAM)'},
-    'ifod2act': {text: 'Probabilistic (iFOD2+ACT)',default: true}
+    'ifod2act': {text: 'Probabilistic (iFOD2+ACT)'},
+    'sdstreamANDifod2act': {text: 'Both Probabilistic and Deterministic', default:true}
 };
 
 AWS.config.update({

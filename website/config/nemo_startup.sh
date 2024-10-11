@@ -54,7 +54,7 @@ s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation
 status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' ${tagfile} | head -n1)
 output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' ${tagfile} | head -n1)
 do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
-tracking_algo=$(jq --raw-output 'select(.Key=="tracking_algorithm") | .Value' ${tagfile} | head -n1)
+tracking_algo_selection=$(jq --raw-output 'select(.Key=="tracking_algorithm") | .Value' ${tagfile} | head -n1)
 do_continuous=$(jq --raw-output 'select(.Key=="continuous") | .Value' ${tagfile} | head -n1)
 endpointmaskname=$(jq --raw-output 'select(.Key=="endpointmask") | .Value' ${tagfile} | head -n1)
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
@@ -186,23 +186,19 @@ fi
 if [ "x${s3nemoroot}" != "x" ]; then
     s3arg="--s3nemoroot ${s3nemoroot}"
 fi
-    
-algostr=""
 
-if [ "${tracking_algo}" = "ifod2act" ] || [ "x${tracking_algo}" = "x" ] ; then
-    tracking_algo="ifod2act"
-    algostr=""
-elif [ "${tracking_algo}" = "sdstream" ]; then
-    algostr="_sdstream"
+tracking_algo_list=""
+
+if [ "${tracking_algo_selection}" = "ifod2act" ] || [ "x${tracking_algo_selection}" = "x" ] ; then
+    tracking_algo_list="ifod2act"
+elif [ "${tracking_algo_selection}" = "sdstream" ]; then
+    tracking_algo_list="sdstream "
+elif [ "${tracking_algo_selection}" = "sdstreamANDifod2act" ]; then
+    tracking_algo_list="sdstream ifod2act"
 else
-    algostr="_${tracking_algo}"
+    tracking_algo_list="${tracking_algo_selection}"
 fi
 
-
-if [ "x${endpointmaskname}" != "x" ] && [ "${endpointmaskname}" != "NONE" ]; then
-    endpointmaskfile="nemo${algostr}_endpoints_mask_${endpointmaskname}.npy"
-    endpointmaskarg="--endpointsmask ${endpointmaskfile}"
-fi
 ###########
 
 #copy latest version of the lesion scripts
@@ -222,8 +218,10 @@ else
     done
 fi
 
-outputdir=${HOME}/nemo_output_${s3filename_noext}
-outputsuffix=nemo_output_${tracking_algo}
+outputsuffix_start="nemo_output"
+
+outputdir=${HOME}/${outputsuffix_start}_${s3filename_noext}
+outputsuffix=${outputsuffix_start}_${tracking_algo_selection}
 outputbasefile=${origfilename_noext}_${outputsuffix}
 outputbase=${outputdir}/${outputbasefile}
 logfile=${outputbase}_${origtimestamp}_log.txt
@@ -231,7 +229,7 @@ logfile=${outputbase}_${origtimestamp}_log.txt
 
 ############
 #For copying data directly to an S3 bucket
-s3direct_resultpath=s3://${s3direct_outputlocation}/${origfilename_noext}_nemo_output_${origtimestamp}/
+s3direct_resultpath=s3://${s3direct_outputlocation}/${origfilename_noext}_${outputsuffix_start}_${origtimestamp}/
 
 mkdir -p $(dirname $outputbase)
 
@@ -587,186 +585,226 @@ ziplistfile_bytes=${outputdir}/output_bytes_ziplist.txt
 
 finalstatus="success"
 success_count=0
-while read inputfile; do
-    inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
-    outputbase_infile=${outputdir}/${inputfile_noext}_${outputsuffix}
-    
-    #postpone the shutdown timer for each mask
-    #(if any lesion mask is still running after 12 hours, shut down)
-    sudo shutdown -h +${maximum_runtime_minutes_per_mask}
-    
-    echo "##########################"  >> ${logfile}
-    echo "# Processing " $(basename ${inputfile}) >> ${logfile}
-    date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
-    python nemo_lesion_to_chaco.py --lesion ${inputfile} \
-        --outputbase ${outputbase_infile} \
-        --chunklist nemo${algostr}_chunklist.npz \
-        --chunkdir chunkfiles${algostr} \
-        --refvol MNI152_T1_1mm_brain.nii.gz \
-        --endpoints nemo${algostr}_endpoints.npy \
-        --asum nemo${algostr}_Asum_endpoints.npz \
-        --asum_weighted nemo${algostr}_Asum_weighted_endpoints.npz \
-        --asum_cumulative nemo${algostr}_Asum_cumulative.npz \
-        --asum_weighted_cumulative nemo${algostr}_Asum_weighted_cumulative.npz \
-        --trackweights nemo${algostr}_siftweights.npy \
-        --tracklengths nemo${algostr}_tracklengths.npy \
-        --tracking_algorithm "${tracking_algo}" ${s3arg} ${endpointmaskarg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
-            ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
-    
-    #if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then
-    if [ $(ls ${outputbase_infile}_*.pkl 2>/dev/null | wc -l ) = 0 ]; then
-        echo "ChaCo output file not found!" >> ${logfile}
-        #output file is missing! what happened? 
-        #sudo shutdown -h now
-        #exit 1
-        finalstatus="error"
+success_count_minimum=0 #increment once per tracking algorithm (so we know we should have AT LEAST 2 successes per mask)
+success_count_maximum=0 #how many times a perfect run would have succeeded
+
+#############
+
+##### START ALGO LOOP
+for tracking_algo in ${tracking_algo_list}; do
+    algostr=""
+
+    if [ "${tracking_algo}" = "ifod2act" ]; then
+        tracking_algo="ifod2act"
+        algostr=""
+    elif [ "${tracking_algo}" = "sdstream" ]; then
+        algostr="_sdstream"
     else
-        success_count=$((success_count+1))
+        algostr="_${tracking_algo}"
     fi
-    
-    #depending on where we encountered an error, the temporary directory
-    #for this input file may not have been removed
-    subjtempdir=$(ls -d ${outputbase_infile}_tmp*/ 2>/dev/null)
-    if [ -d "${subjtempdir}" ]; then
-        rm -rf ${subjtempdir}
-    fi
-    
-    #save the "modified" SC for a subject with this lesion
-    o=0
-    for out_name in ${output_namelist}; do
-        o=$((o+1))
-        out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
-        out_filename_roisize=$(echo ${output_roisizelist} | cut -d" " -f$o)
-        outfile_allref=${outputbase_infile}_chacoconn_${out_name}_allref.pkl
-        outfile_denom=${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
-        if [ "${out_pairwise}" = "false" ] || [ ! -e "${outfile_allref}" ] || [ ! -e "${outfile_denom}" ]; then
-            continue;
-        fi
-        
-        siftstr=""
-        if [ "${do_siftweights}" = "true" ]; then
-            siftstr="_sift2"
-        fi
-        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
-        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_stdev.mat
-        python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
-        
-        #if a file was provided with region volume information, use that to produce a volnorm version of the nemoSC
-        if [ "${out_filename_roisize}" = "x" ] || [ ! -e "${out_filename_roisize}" ]; then
-            continue
-        fi
-        outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
-        outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
-        python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
-    done
-    
-    
-    #Save cifti files for any outputs with a cifti template
-    o=0
-    for out_name in ${output_namelist}; do
-        o=$((o+1))
-        #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
-        out_filename_ciftitemplate=$(echo ${output_ciftitemplatelist} | cut -d" " -f$o)
-        if [ "${out_filename_ciftitemplate}" = "x" ] || [ ! -e "${out_filename_ciftitemplate}" ]; then
-            continue
-        fi
-        
-        outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
-        [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_mean.dscalar.nii --in ${outfile}
-        
-        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
-        [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
-        
-    done
-    
-    #generate glassbrain/matrix/graphbrain figures for all outputs for this lesion mask
-    o=0
-    for out_name in ${output_namelist}; do
-        o=$((o+1))
-        
-        # save glassbrain chacovols for normal volumetric outputs
-        outfile=${outputbase_infile}_chacovol_${out_name}_mean.nii.gz
-        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
 
-        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.nii.gz
-        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
-        
-        # save glassbrain chacovols for normal volumetric outputs (smoothed versions)
-        outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_mean.nii.gz 2> /dev/null | head -n1)
-        if [ -e "${outfile}" ]; then
-            smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
-            python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_mean.png ${outfile}
-        fi
-        
-        outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_stdev.nii.gz 2> /dev/null | head -n1)
-        if [ -e "${outfile}" ]; then
-            smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
-            python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_stdev.png ${outfile}
-        fi
-        
-        # save matrix figures for chacoconn outputs
-        outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_mean.png --colormap hot ${outfile} 
-        
-        outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_stdev.png --colormap hot ${outfile} 
-        
-        ############
-        #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
-        out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
-        if [ "${out_filename_displayvol}" = "x" ] || [ ! -e "${out_filename_displayvol}" ]; then
-            continue
-        fi
-        
-        outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
-        
-        outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
-        
-        #for regionwise chacoconn, save glassbrain/graphbrain
-        outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_mean.png ${outfile} 
-        
-        outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
-        [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_stdev.png ${outfile} 
-    done
-    
-    o=0
-    for out_name in ${output_namelist}; do
-        o=$((o+1))
-        out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
-        out_allref=$(echo ${output_allreflist} | cut -d" " -f$o)
-        if [ "${out_allref}" = "false" ]; then
-            rm -f ${outputbase_infile}_chacovol_${out_name}_allref.pkl
-            rm -f ${outputbase_infile}_chacovol_${out_name}_allref_denom.pkl
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
-        fi
-        if [ "${out_pairwise}" = "false" ]; then
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_mean.pkl
-            rm -f ${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
-        fi
-    done
-
-    if [ "${do_s3direct}"  = "1" ]; then
-        #copy all data to a new s3 bucket
-        aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
-        #update ziplistfile as we go, so we can delete files as we go
-        (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
-        (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
-        #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
-        ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
+    if [ "x${endpointmaskname}" != "x" ] && [ "${endpointmaskname}" != "NONE" ]; then
+        endpointmaskfile="nemo${algostr}_endpoints_mask_${endpointmaskname}.npy"
+        endpointmaskarg="--endpointsmask ${endpointmaskfile}"
     fi
-done < ${inputfile_listfile}
+    
+    outputsuffix_thisalgo=${outputsuffix_start}_${tracking_algo}
+    
+    success_count_minimum=$((success_count_minimum+1))
+    
+    #############
+    while read inputfile; do
+        inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
+        outputbase_infile=${outputdir}/${inputfile_noext}_${outputsuffix_thisalgo}
+        
+        #postpone the shutdown timer for each mask
+        #(if any lesion mask is still running after 12 hours, shut down)
+        sudo shutdown -h +${maximum_runtime_minutes_per_mask}
+        
+        echo "##########################"  >> ${logfile}
+        echo "# Processing " $(basename ${inputfile}) >> ${logfile}
+        date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
+        python nemo_lesion_to_chaco.py --lesion ${inputfile} \
+            --outputbase ${outputbase_infile} \
+            --chunklist nemo${algostr}_chunklist.npz \
+            --chunkdir chunkfiles${algostr} \
+            --refvol MNI152_T1_1mm_brain.nii.gz \
+            --endpoints nemo${algostr}_endpoints.npy \
+            --asum nemo${algostr}_Asum_endpoints.npz \
+            --asum_weighted nemo${algostr}_Asum_weighted_endpoints.npz \
+            --asum_cumulative nemo${algostr}_Asum_cumulative.npz \
+            --asum_weighted_cumulative nemo${algostr}_Asum_weighted_cumulative.npz \
+            --trackweights nemo${algostr}_siftweights.npy \
+            --tracklengths nemo${algostr}_tracklengths.npy \
+            --tracking_algorithm "${tracking_algo}" ${s3arg} ${endpointmaskarg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
+                ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
+        
+        success_count_maximum=$((success_count_maximum+1))
+        
+        #if [ ! -e ${outputbase_infile}_chaco_allref.npz ]; then
+        if [ $(ls ${outputbase_infile}_*.pkl 2>/dev/null | wc -l ) = 0 ]; then
+            echo "ChaCo output file not found!" >> ${logfile}
+            #output file is missing! what happened? 
+            #sudo shutdown -h now
+            #exit 1
+            finalstatus="error"
+        else
+            success_count=$((success_count+1))
+        fi
+        
+        #depending on where we encountered an error, the temporary directory
+        #for this input file may not have been removed
+        subjtempdir=$(ls -d ${outputbase_infile}_tmp*/ 2>/dev/null)
+        if [ -d "${subjtempdir}" ]; then
+            rm -rf ${subjtempdir}
+        fi
+        
+        #save the "modified" SC for a subject with this lesion
+        o=0
+        for out_name in ${output_namelist}; do
+            o=$((o+1))
+            out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+            out_filename_roisize=$(echo ${output_roisizelist} | cut -d" " -f$o)
+            outfile_allref=${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+            outfile_denom=${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
+            if [ "${out_pairwise}" = "false" ] || [ ! -e "${outfile_allref}" ] || [ ! -e "${outfile_denom}" ]; then
+                continue;
+            fi
+            
+            siftstr=""
+            if [ "${do_siftweights}" = "true" ]; then
+                siftstr="_sift2"
+            fi
+            outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
+            outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_stdev.mat
+            python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
+            
+            #if a file was provided with region volume information, use that to produce a volnorm version of the nemoSC
+            if [ "${out_filename_roisize}" = "x" ] || [ ! -e "${out_filename_roisize}" ]; then
+                continue
+            fi
+            outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
+            outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
+            python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
+        done
+        
+        
+        #Save cifti files for any outputs with a cifti template
+        o=0
+        for out_name in ${output_namelist}; do
+            o=$((o+1))
+            #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
+            out_filename_ciftitemplate=$(echo ${output_ciftitemplatelist} | cut -d" " -f$o)
+            if [ "${out_filename_ciftitemplate}" = "x" ] || [ ! -e "${out_filename_ciftitemplate}" ]; then
+                continue
+            fi
+            
+            outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
+            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_mean.dscalar.nii --in ${outfile}
+            
+            outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
+            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
+            
+        done
+        
+        #generate glassbrain/matrix/graphbrain figures for all outputs for this lesion mask
+        o=0
+        for out_name in ${output_namelist}; do
+            o=$((o+1))
+            
+            # save glassbrain chacovols for normal volumetric outputs
+            outfile=${outputbase_infile}_chacovol_${out_name}_mean.nii.gz
+            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+
+            outfile=${outputbase_infile}_chacovol_${out_name}_stdev.nii.gz
+            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+            
+            # save glassbrain chacovols for normal volumetric outputs (smoothed versions)
+            outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_mean.nii.gz 2> /dev/null | head -n1)
+            if [ -e "${outfile}" ]; then
+                smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
+                python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_mean.png ${outfile}
+            fi
+            
+            outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_stdev.nii.gz 2> /dev/null | head -n1)
+            if [ -e "${outfile}" ]; then
+                smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
+                python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_stdev.png ${outfile}
+            fi
+            
+            # save matrix figures for chacoconn outputs
+            outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_mean.png --colormap hot ${outfile} 
+            
+            outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_stdev.png --colormap hot ${outfile} 
+            
+            ############
+            #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
+            out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
+            if [ "${out_filename_displayvol}" = "x" ] || [ ! -e "${out_filename_displayvol}" ]; then
+                continue
+            fi
+            
+            outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+            
+            outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+            
+            #for regionwise chacoconn, save glassbrain/graphbrain
+            outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_mean.png ${outfile} 
+            
+            outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+            [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_stdev.png ${outfile} 
+        done
+        
+        o=0
+        for out_name in ${output_namelist}; do
+            o=$((o+1))
+            out_pairwise=$(echo ${output_pairwiselist} | cut -d" " -f$o)
+            out_allref=$(echo ${output_allreflist} | cut -d" " -f$o)
+            if [ "${out_allref}" = "false" ]; then
+                rm -f ${outputbase_infile}_chacovol_${out_name}_allref.pkl
+                rm -f ${outputbase_infile}_chacovol_${out_name}_allref_denom.pkl
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
+            fi
+            if [ "${out_pairwise}" = "false" ]; then
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_allref.pkl
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_allref_denom.pkl
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_mean.pkl
+                rm -f ${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
+            fi
+        done
+
+        if [ "${do_s3direct}"  = "1" ]; then
+            #copy all data to a new s3 bucket
+            aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
+            #update ziplistfile as we go, so we can delete files as we go
+            (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
+            (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
+            #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
+            ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
+        fi
+    done < ${inputfile_listfile}
+
+    
+    #save subject list to file in output directory:
+    python -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
+    
+    #delete temporary files used by this tracking algo.
+    #this helps save space if we are looping through multiple algos
+    ls -d chunkfiles${algostr} nemo${algostr}_*.npy nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+done
+##### END ALGO LOOP
 
 echo "##########################"  >> ${logfile}
 echo "# Finished processing input list" >> ${logfile}
 date --utc >> ${logfile} #print ending timestamp after lesionmask loop
 
-if [ "${success_count}" -gt "1" ]; then
+if [ "${success_count}" -gt "${success_count_minimum}" ]; then
     python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
     for out_name in ${output_namelist}; do
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.nii.gz 2>/dev/null)
@@ -823,9 +861,6 @@ for out_name in ${output_namelist}; do
     fi
     cp -f ${out_roilistfile} ${outputdir}/
 done
-
-#save subject list to file in output directory:
-python -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
 
 uploadjson=${outputbase}_upload_info.json
 echo "{}" > ${uploadjson}
@@ -900,7 +935,7 @@ jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstat
     }' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
 
 
-if [ "${success_count}" -gt "1" ]; then
+if [ "${success_count}" -gt "${success_count_minimum}" ]; then
     aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*_listmean.png" --include ${ziplistfile} --include ${uploadjson} --no-progress
 else
     aws s3 cp --recursive ./ s3://${outputbucket}/${outputkey_base}/ --exclude "*" --include "*.png" --include ${ziplistfile} --include ${uploadjson} --no-progress
