@@ -52,7 +52,8 @@ We have created a user-friendly web interface to run this tool in the cloud (AWS
     * Note: for parcellations, these will be upper triangular. For voxelwise (including downsampled), this is not guaranteed
 * <code>\_chacovol\_(mean|stdev)</code> = mean and stdev of all 420 HCP-subject ChaCo ratio maps (for voxelwise outputs, these are .nii.gz files)
 * <code>\_chacoconn\_(mean|stdev)</code> = mean and stdev of all 420 HCP-subject pairwise disconnectivity maps
-* <code>\_nemoSC\_(mean|stdev)</code> = mean and stdev of predicted pairwise structural *connectivity* after removing disconnected streamlines for all 420 HCP-subject
+* <code>\_nemoSC[_sift2][_volnorm]\_(mean|stdev)</code> = mean and stdev of predicted pairwise structural *connectivity* after removing disconnected streamlines for all 420 HCP-subject. 
+    * <code>_sift2</code> and <code>_volnorm</code> indicate whether SIFT2 weighting and/or volume normalization was applied to the estimated connectomes.
 * <code>chacovol_allref.pkl</code> = ChaCo ratio map for each of the 420 HCP reference subjects
     * 420x(voxels or ROIs) sparse matrix format
 * <code>chacoconn_allref.pkl</code> = ChaCo ratio map for each of the 420 HCP reference subjects
