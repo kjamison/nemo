@@ -796,7 +796,9 @@ for tracking_algo in ${tracking_algo_list}; do
     
     #delete temporary files used by this tracking algo.
     #this helps save space if we are looping through multiple algos
-    ls -d chunkfiles${algostr} nemo${algostr}_*.npy nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+    if [ "${do_debug}" != "true" ]; then
+        ls -d chunkfiles${algostr} nemo${algostr}_*.npy nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+    fi
 done
 ##### END ALGO LOOP
 

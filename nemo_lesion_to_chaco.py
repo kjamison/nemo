@@ -608,6 +608,8 @@ if __name__ == "__main__":
         s3nemoroot=s3nemoroot.replace("s3://","").replace("S3://","")
         s3nemoroot_bucket=s3nemoroot.split("/")[0]
         s3nemoroot_prefix="/".join(s3nemoroot.split("/")[1:])
+        if s3nemoroot_prefix:
+            s3nemoroot_prefix+="/"
     
     if do_download_nemofiles:
         starttime_download_nemofiles=time.time()
@@ -635,8 +637,14 @@ if __name__ == "__main__":
             multiproc_cores=num_cpu-1
             P=multiprocessing.Pool(multiproc_cores, s3initialize)
     
-            jobs = [(s3nemoroot_bucket,s3nemoroot_prefix+'/'+k.split("/")[-1],k) for k in nemofiles_to_download]
-            P.map(s3download,jobs)
+            jobs = [(s3nemoroot_bucket,s3nemoroot_prefix+k.split("/")[-1],k) for k in nemofiles_to_download]
+            try:
+                P.map(s3download,jobs)
+            except Exception as e:
+                print('Download failed:',e)
+                P.terminate()
+                P.close()
+                sys.exit(1)
             P.close()
     
             print(' took %.3f seconds' % (time.time()-starttime_download_nemofiles))
@@ -885,7 +893,7 @@ if __name__ == "__main__":
             P=multiprocessing.Pool(multiproc_cores, s3initialize)
             
             #make sure chunk file includes the directory from the input (eg: /chunkfiles/ or /chunkfiles_<algo>/
-            jobs = [(s3nemoroot_bucket,s3nemoroot_prefix+'/'+"/".join(k.split("/")[-2:]),k) for k in chunkfiles_to_download]
+            jobs = [(s3nemoroot_bucket,s3nemoroot_prefix+"/".join(k.split("/")[-2:]),k) for k in chunkfiles_to_download]
             P.map(s3download,jobs)
             P.close()
             

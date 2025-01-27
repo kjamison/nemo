@@ -16,7 +16,7 @@ USER_DATA_FILE_KEY_DEBUG = "config/user-data-debug"
 BUCKET_INPUT_DIR = "inputs"
 BUCKET_OUTPUT_DIR = "outputs"
 
-NEMO_DATA_STORAGE_LOCATION = "kuceyeski-wcm-temp/kwj2001/nemo2"
+NEMO_DATA_STORAGE_LOCATION = "kuceyeski-wcm-nemodata"
 
 RESULT_EMAIL_SENDER = "NeMo Notification <nemo-notification@med.cornell.edu>"
 OUTPUT_EXPIRATION_STRING = "7 days"
@@ -28,6 +28,7 @@ OUTPUT_EXPIRATION_SECONDS = 604800
 IAM_USER_KEY=os.environ['IAM_USER_KEY']
 IAM_USER_SECRET=os.environ['IAM_USER_SECRET']
 COCO_PASSWORD=os.environ['COCO_PASSWORD']
+COCO_PASSWORD_EXTERN=os.environ['COCO_PASSWORD_EXTERN']
 
 
 #note: 600gb nemo ami = ami-0cae8b732a1b5b582
@@ -236,10 +237,14 @@ def lambda_handler(raw_event, context):
                 #if password was passed as "enc:*", its base64 encoded, so decode it now
                 if coco_password_input.startswith("enc:"):
                     coco_password_input=base64.b64decode(coco_password_input[4:]).decode("ascii")
-                if coco_password_input == COCO_PASSWORD:
+                if coco_password_input == COCO_PASSWORD or coco_password_input == COCO_PASSWORD_EXTERN:
                     if 'outputlocation' in s3tagdict:
                         s3tagdict['s3direct_outputlocation']=s3tagdict['outputlocation']
                     S3.put_object(Bucket=bucket, Key=key+s3tagdict['status_suffix'], Body=b'success', Tagging='password_status=success')
+                    if coco_password_input == COCO_PASSWORD_EXTERN:
+                        s3tagdict['password_group']='external'
+                    else:
+                        s3tagdict['password_group']='internal'
                 else:
                     print(f"Bad password!")
                     submittime=int(s3tagdict['unixtime'])

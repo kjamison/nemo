@@ -3,7 +3,7 @@
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 WEBSITE_S3=kuceyeski-wcm-web
-NEMODATA_S3=kuceyeski-wcm-temp/kwj2001/nemo2
+NEMODATA_S3=kuceyeski-wcm-nemodata
 
 BACKUP_TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 WEBSITE_S3_BACKUP_DIR=${WEBSITE_S3}/nemo_website_backups/backup_${BACKUP_TIMESTAMP}
