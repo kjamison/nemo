@@ -58,6 +58,7 @@ tracking_algo_selection=$(jq --raw-output 'select(.Key=="tracking_algorithm") | 
 do_continuous=$(jq --raw-output 'select(.Key=="continuous") | .Value' ${tagfile} | head -n1)
 endpointmaskname=$(jq --raw-output 'select(.Key=="endpointmask") | .Value' ${tagfile} | head -n1)
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
+do_only_nonzero_denom=$(jq --raw-output 'select(.Key=="only_nonzero_denom") | .Value' ${tagfile} | head -n1)
 
 inputbucket=$(echo $s3path | awk -F/ '{print $1}')
 outputbucket=${inputbucket}
@@ -156,6 +157,8 @@ cumulativearg=""
 continuousarg=""
 endpointmaskarg=""
 debugarg=""
+nonzerodenomarg=""
+
 binarizearg="--binarize" #for glassbrain.py
 s3arg=""
 if [ "${do_smoothing}" = "true" ]; then
@@ -181,6 +184,10 @@ fi
 
 if [ "${do_debug}" = "true" ]; then
     debugarg="--debug"
+fi
+
+if [ "${do_only_nonzero_denom}" = "true" ]; then
+    nonzerodenomarg="--onlynonzerodenom"
 fi
 
 if [ "x${s3nemoroot}" != "x" ]; then
@@ -637,7 +644,7 @@ for tracking_algo in ${tracking_algo_list}; do
             --trackweights nemo${algostr}_siftweights.npy \
             --tracklengths nemo${algostr}_tracklengths.npy \
             --tracking_algorithm "${tracking_algo}" ${s3arg} ${endpointmaskarg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
-                ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} >> ${logfile} 2>&1
+                ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} ${nonzerodenomarg} >> ${logfile} 2>&1
         
         success_count_maximum=$((success_count_maximum+1))
         

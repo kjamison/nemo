@@ -46,6 +46,7 @@ def argument_parse(arglist):
     parser.add_argument('--tracking_algorithm',action='store',dest='tracking_algorithm')
     parser.add_argument('--debug',action='store_true', dest='debug')
     parser.add_argument('--subjcount',action='store', dest='subjcount', type=int, help='number of reference subjects to compute (for debugging only!)')
+    parser.add_argument('--onlynonzerodenom',action='store_true',dest='only_nonzero_denom', help='only include subjects with non-zero denominator for a given voxel')
     
     return parser.parse_args(arglist)
 
@@ -424,12 +425,19 @@ def make_triangular_matrix_symmetric(m):
         m+=np.tril(m,-1).T
     return m
 
-def save_chaco_output(chaco_output):   
+def save_chaco_output(chaco_output, delete_files=True):   
     #externals: Psparse_list, NUMBER_OF_SUBJECTS_TO_COMPUTE, tmpdir, Asum, Aconnsum, do_debug, outputbase, 
-#for chaco_output in chaco_output_list:
+    #for chaco_output in chaco_output_list:
     #print(chaco_output)
     chaco_allsubj=[]
     chaco_denom_allsubj=[]
+    
+    do_nonzero_denom=False
+    nonzero_denom_thresh=None
+    if 'only_nonzero_denom' in chaco_output and chaco_output['only_nonzero_denom']:
+        do_nonzero_denom=True
+    if 'nonzero_denom_thresh' in chaco_output:
+        nonzero_denom_thresh=chaco_output['nonzero_denom_thresh']
     
     Psparse=None
     output_reshape=chaco_output['reshape']
@@ -477,29 +485,69 @@ def save_chaco_output(chaco_output):
         chaco_denom.data=1/chaco_denom.data.astype(np.float32)
         chaco_allsubj.append(chaco_numer.multiply(chaco_denom))
         
-        os.remove(chacofile_subj)
-        if chacofile_subj_denom is not None:
-            os.remove(chacofile_subj_denom)
+        if delete_files:
+            os.remove(chacofile_subj)
+            if chacofile_subj_denom is not None:
+                os.remove(chacofile_subj_denom)
         
     if do_debug:
         print('Loading in %s took %s' % (chaco_output['name'],durationToString(time.time()-starttime_accum)))
-        
-    #compute mean and stdev of chaco scores across all reference subjects
+    
+    # if do_nonzero_denom:
+    #   in this mode, for each voxel/parcel/pairwise connection, we compute the chaco ratio (lesion streamlines / total streamlines), 
+    #   but IGNORE subjects that have 0 streamlines in the denominator for that location
+    # else:
+    #   in standard mode, we compute the chaco ratio for each location (lesion streamlines/total streamlines) for each subject and simply average across subjects
+    #   If a subject does not have any streamlines in a location (denom = total streamlines=0), their chaco ratio for that location = 0
+    #   and this 0 is included in the average across all subjects
+    
+    #generate an output that gives the fraction of subjects for which the denominator was non-zero
+    #this can be used to mask the chacomean output to exclude regions with inconsistent denominators
+    chacomean_denom_binfrac=None
+    
+    #   compute mean and stdev of chaco scores across all reference subjects
     if chaco_allsubj[0].shape[0] == 1:
-        #stackable
+        #stackable (for 1D chacovol)
         chaco_allsubj=sparse.vstack(chaco_allsubj)
         chaco_denom_allsubj=sparse.vstack(chaco_denom_allsubj)
-        chacomean=np.array(np.mean(chaco_allsubj,axis=0))
-        chacostd=np.sqrt(np.array(np.mean(chaco_allsubj.multiply(chaco_allsubj),axis=0) - chacomean**2))
+        if do_nonzero_denom:
+            chaconzd_numer=np.array(np.sum(chaco_allsubj,axis=0))
+            chaconzd_denom=np.array(np.sum(chaco_denom_allsubj>0,axis=0))
+            chaconzd_sqnumer=np.array(np.sum(chaco_allsubj.multiply(chaco_allsubj),axis=0))
+            chaconzd_mask=(chaconzd_numer>0) & (chaconzd_denom>0)
+            chaconzd_mean=np.zeros_like(chaconzd_numer)
+            chaconzd_sqmean=np.zeros_like(chaconzd_numer)
+            chaconzd_mean[chaconzd_mask]=chaconzd_numer[chaconzd_mask]/chaconzd_denom[chaconzd_mask]
+            chaconzd_sqmean[chaconzd_mask]=chaconzd_sqnumer[chaconzd_mask]/chaconzd_denom[chaconzd_mask]
+            chaconzd_std=np.sqrt(np.clip(chaconzd_sqmean-chaconzd_mean**2,0,None))
+            
+            chacomean_denom_binfrac=chaconzd_denom/chaco_allsubj.shape[0]
+            chacomean=chaconzd_mean
+            chacostd=chaconzd_std
+        else:
+
+            chacomean=np.array(np.mean(chaco_allsubj,axis=0))
+            chacostd=np.sqrt(np.clip(np.array(np.mean(chaco_allsubj.multiply(chaco_allsubj),axis=0) - chacomean**2),0,None))
     else:
+        #non-stackable (for list of 2D chacoconn)
         chacomean=0
         chacosqmean=0
+        
         for ch in chaco_allsubj:
             chacomean+=ch
             chacosqmean+=ch.multiply(ch)
-        chacomean/=len(chaco_allsubj)
-        chacosqmean/=len(chaco_allsubj)
+        
+        if do_nonzero_denom:
+            denom=0
+            for chd in chaco_denom_allsubj:
+                denom+=(chd>0).astype(np.float32)
+            chacomean_denom_binfrac=denom/len(chaco_denom_allsubj)
+        else:
+            denom=len(chaco_allsubj)
+        chacomean/=denom
+        chacosqmean/=denom
         chacostd=np.sqrt(chacosqmean - chacomean.multiply(chacomean))
+    
         
     #this sqrt can be negative sometimes!
     #assuming it's just a numerical precision thing and set it to 0
@@ -507,6 +555,11 @@ def save_chaco_output(chaco_output):
         chacostd.data[np.isnan(chacostd.data)]=0
     else:
         chacostd[np.isnan(chacostd)]=0
+    
+    #threshold the chacomean by denom_binfrac if threshold is provided
+    if chacomean_denom_binfrac is not None and nonzero_denom_thresh is not None and nonzero_denom_thresh>0:
+        chacomean=chacomean.multiply(chacomean_denom_binfrac>nonzero_denom_thresh)
+        chacostd=chacostd.multiply(chacomean_denom_binfrac>nonzero_denom_thresh)
         
     outfile_pickle=outputbase+'_'+chaco_output['name']+"_allref.pkl"
     pickle.dump(chaco_allsubj, open(outfile_pickle,"wb"))
@@ -517,12 +570,18 @@ def save_chaco_output(chaco_output):
     if output_reshape is None:
         pickle.dump(chacomean, open(outputbase+'_'+chaco_output['name']+'_mean.pkl', "wb"))
         pickle.dump(chacostd, open(outputbase+'_'+chaco_output['name']+'_stdev.pkl', "wb"))
+        if chacomean_denom_binfrac is not None:
+            pickle.dump(chacomean_denom_binfrac, open(outputbase+'_'+chaco_output['name']+'_denomfrac.pkl', "wb"))
     else:
         outimg=nib.Nifti1Image(np.reshape(np.array(chacomean),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
         nib.save(outimg,outputbase+'_%s_mean.nii.gz' % (chaco_output['name']))
         
         outimg=nib.Nifti1Image(np.reshape(np.array(chacostd),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
         nib.save(outimg,outputbase+'_%s_stdev.nii.gz' % (chaco_output['name']))
+        
+        if chacomean_denom_binfrac is not None:
+            outimg=nib.Nifti1Image(np.reshape(np.array(chacomean_denom_binfrac),output_reshape.shape),affine=output_reshape.affine, header=output_reshape.header)
+            nib.save(outimg,outputbase+'_%s_denomfrac.nii.gz' % (chaco_output['name']))
         
     if do_debug:
         print('Saving %s took %s' % (chaco_output['name'],durationToString(time.time()-starttime_accum)))
@@ -565,6 +624,7 @@ if __name__ == "__main__":
     do_debug=args.debug
     debug_subjcount=args.subjcount
     tracking_algorithm=args.tracking_algorithm
+    do_only_include_nonzero_subjects=args.only_nonzero_denom
     
     print("Executed with the following inputs:")
     for k,v in vars(args).items():
@@ -667,6 +727,7 @@ if __name__ == "__main__":
     print('Cumulative track hits: ', do_cumulative_hits)
     print('Continuous-valued lesion volume: ', do_continuous)
     print('Output pairwise connectivity: ', do_pairwise)
+    print('Only include non-zero denom subjectcs: ', do_only_include_nonzero_subjects)
     
     starttime=time.time()
     
@@ -1126,16 +1187,20 @@ if __name__ == "__main__":
     
     chaco_output_list=[]
     
+    only_nonzero_denom_chacovol=do_only_include_nonzero_subjects
+    only_nonzero_denom_chacoconn=do_only_include_nonzero_subjects
+    
     if do_save_fullvol:
         chaco_output_list.append({"name":"chacovol_%s" % (origres_name), "numerator":'chacovol_subj%05d.npz', "denominator":'chacovol_denom_subj%05d.npz', 
-            "parcelindex":None, "reshape": refimg, "voxmm": voxmm})
+            "parcelindex":None, "reshape": refimg, "voxmm": voxmm,"only_nonzero_denom":only_nonzero_denom_chacovol})
     
     if do_save_fullconn and do_pairwise:
         #chaco_output_list.append({"name":"chacoconn_%s" % (origres_name), "numerator":'chacoconn_subj%05d.npz', "denominator":'Aconnsum', 'parcelindex':None, 'reshape': None})
         chaco_output_list.append({"name":"chacoconn_%s" % (origres_name), 
             "numerator":'chacoconn_subj%05d.npz', 
             "denominator": 'chacoconn_denom_subj%05d.npz', 
-            "parcelindex":None, "reshape": None, "displayvol": None})
+            "parcelindex":None, "reshape": None, "displayvol": None,
+            "only_nonzero_denom":only_nonzero_denom_chacoconn})
     
     if Psparse_list:
         for iparc in range(len(Psparse_list)):
@@ -1145,12 +1210,14 @@ if __name__ == "__main__":
                 "parcelindex":iparc, 
                 "reshape": Psparse_list[iparc]['reshape'], 
                 "voxmm": Psparse_list[iparc]['voxmm'],
-                "displayvol": Psparse_list[iparc]['displayvol']})
+                "displayvol": Psparse_list[iparc]['displayvol'],
+                "only_nonzero_denom":only_nonzero_denom_chacovol})
             if Psparse_list[iparc]['pairwise']:
                 chaco_output_list.append({"name":"chacoconn_%s" % (Psparse_list[iparc]['name']), 
                     "numerator": 'chacoconn_parc%05d_subj%%05d.npz' % (iparc), 
                     "denominator":'chacoconn_parc%05d_denom_subj%%05d.npz' % (iparc),
-                    "parcelindex":iparc, "reshape": None, "displayvol": None, "pairwise": True})
+                    "parcelindex":iparc, "reshape": None, "displayvol": None, "pairwise": True,
+                    "only_nonzero_denom":only_nonzero_denom_chacoconn})
     
     
     #chaco_output_list=[chaco_output_list[0]]

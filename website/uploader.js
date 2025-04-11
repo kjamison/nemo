@@ -27,6 +27,7 @@ var default_regionwise_keepdiag=false
 var default_regionwise_keepdiag_regionthresh=30 //keep diag by default if regioncount<=thresh
 
 var default_endpointmask_checked=true
+var default_nonzerodenom_checked=false
 var default_endpointmask_name="fs87bs_dil3"
 
 var min_parc_dilation=0;
@@ -243,6 +244,13 @@ function showUploader(run_internal_script) {
         //For now, lets only offer this option for debugging purposes
         extra_internal_options_html+=['<input type="checkbox" id="continuous" name="continuous" value="1">',
         '<label for="continuous">Use continuous values for input lesion (do not binarize) <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
+        
+        if(default_nonzerodenom_checked)
+            nonzerodenomcheckstr="1"
+        else
+            nonzerodenomcheckstr="0"
+        extra_internal_options_html+=['<input type="checkbox" id="nonzero_denom_checkbox" name="nonzero_denom_checkbox" value="'+nonzerodenomcheckstr+'">',
+                '<label for="nonzero_denom_checkbox">Only include subjects with non-zero denominator in local ratio</label><br/>'].join('\n');
     }
     
 
@@ -264,7 +272,6 @@ function showUploader(run_internal_script) {
             maskcheckstr="0"
         extra_local_options_html+=['<input type="checkbox" id="endpointmask_checkbox" name="endpointmask_checkbox" value="'+maskcheckstr+'">',
         '<label for="endpointmask_checkbox">Ignore streamlines that terminate in white-matter</label><br/>'].join('\n');
-        
         
     }
     
@@ -674,7 +681,11 @@ function submitMask() {
     if(document.getElementById("tracking_algorithm_select"))
         tracking_algo=document.getElementById("tracking_algorithm_select").value;
     
-    
+    var nonzerodenom = false;
+    if(document.getElementById("nonzero_denom_checkbox"))
+        nonzerodenom = document.getElementById("nonzero_denom_checkbox").checked;
+        
+        
     //endpointmask_name="fs87bs_dil3";
     var endpointmask_name = null
     if(document.getElementById("endpointmask_checkbox") && document.getElementById("endpointmask_checkbox").checked)
@@ -858,6 +869,9 @@ function submitMask() {
     
     if (endpointmask_name)
         config_taglist=config_taglist.concat([{Key: 'endpointmask', Value: endpointmask_name}]);
+    
+    if (nonzerodenom)
+        config_taglist=config_taglist.concat([{Key: 'only_nonzero_denom', Value: nonzerodenom}]);
     
     if (outputs_taglist.length)
         config_taglist=config_taglist.concat(outputs_taglist);
