@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 from scipy.io import loadmat,savemat
+from scipy import sparse
 import sys
 import argparse
 import nibabel as nib
@@ -24,11 +25,12 @@ def argument_parse_nemosc(argv):
     parser.add_argument("--triu",action="store_true",dest="triu")
     parser.add_argument("--nodiag",action="store_true",dest="nodiag")
     parser.add_argument("--onlydenom",action="store_true",dest="onlydenom")
+    parser.add_argument("--maxdensesize",action="store",default=1000,dest="maxdensesize",type=int)
     
     args=parser.parse_args(argv)
     return args
 
-def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfile=None,do_triu=False,do_nodiag=False,do_onlydenom=False):
+def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfile=None,do_triu=False,do_nodiag=False,do_onlydenom=False,maxdensesize=1000):
     C=pickle.load(open(chacofile,"rb"))
     D=pickle.load(open(denomfile,"rb"))
     roivolmat=None
@@ -60,16 +62,26 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
             roivolmat=(np.atleast_2d(roivol)+np.atleast_2d(roivol).T)/2
         else:
             roivolmat=np.stack([(np.atleast_2d(roivol[i,:])+np.atleast_2d(roivol[i,:]).T)/2 for i in range(roivol.shape[0])], axis=2)
-        
     
-    #convert the list of RxR matrices into an R x R x RefSubj 3D matrix
-    Cnew=np.stack([x.toarray() for x in C],axis=2)
-    Dnew=np.stack([x.toarray() for x in D],axis=2)
+    output_is_sparse=False
+    
+    if maxdensesize and C[0].shape[0]>maxdensesize:
+        #if the matrix is too large to convert the full list of matrices to dense, keep them as sparse
+        output_is_sparse=True
+        Cnew=C
+        Dnew=D
+    else:
+        #convert the list of RxR matrices into an R x R x RefSubj 3D matrix
+        Cnew=np.stack([x.toarray() for x in C],axis=2)
+        Dnew=np.stack([x.toarray() for x in D],axis=2)
     
     #compute estimated SC for each reference subject from (1-chaco)*reference
     #(element-wise multiplication)
     if not do_onlydenom:
-        SC=(1-Cnew)*Dnew
+        if output_is_sparse:
+            SC=[d-d.multiply(c) for c,d in zip(Cnew,Dnew)]
+        else:
+            SC=(1-Cnew)*Dnew
     else:
         #in onlydenom case, we are computing the average SC for this atlas, ignoring the chaco info completely
         SC=Dnew
@@ -81,39 +93,76 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,roivolfil
         SC=SC/roivolmat
         SC[roivolmat==0]=0
     
-    #compute the mean estimated SC (RxR) across all ref subjects
-    SCmean=np.mean(SC,axis=2)
-    SCstd=np.zeros(SCmean.shape)
-    if outfile_stdev is not None:
-        SCstd=np.std(SC,axis=2)
+    if output_is_sparse:
+        SCmean=0
+        SCsqmean=0
+        for c in SC:
+            SCmean+=c
+            SCsqmean+=c.multiply(c)
+        SCmean/=len(SC)
+        SCsqmean/=len(SC)
+        SCstd=SCsqmean - SCmean.multiply(SCmean)
+        SCstd[SCstd<0]=0
+        SCstd.eliminate_zeros()
+        SCstd=np.sqrt(SCstd)
+    else:
+        #compute the mean estimated SC (RxR) across all ref subjects
+        SCmean=np.mean(SC,axis=2)
+        SCstd=np.zeros(SCmean.shape)
+        if outfile_stdev is not None:
+            SCstd=np.std(SC,axis=2)
     
     if roivolmat is not None and len(roivolmat.shape)==2:
         SCmean=SCmean/roivolmat
         SCstd=SCstd/roivolmat
     
-    if do_nodiag:
-        SCmean[np.eye(SCmean.shape[0])>0]=0
-        SCstd[np.eye(SCstd.shape[0])>0]=0
-    
-    if do_triu and do_nodiag:
-        SCmean=np.atleast_2d(SCmean[np.triu(np.ones(SCmean.shape),k=1)>0])
-        SCstd=np.atleast_2d(SCstd[np.triu(np.ones(SCstd.shape),k=1)>0])
-    elif do_triu:
-        SCmean=np.atleast_2d(SCmean[np.triu(np.ones(SCmean.shape),k=0)>0])
-        SCstd=np.atleast_2d(SCstd[np.triu(np.ones(SCstd.shape),k=0)>0])
-    
-    if outfile.endswith(".mat"):
-        savemat(outfile,{"SC":SCmean})	
-    else:
-        np.savetxt(outfile,SCmean,"%f")
-    
-    if outfile_stdev is not None:
-        if outfile_stdev.endswith(".mat"):
-            savemat(outfile_stdev,{"SC":SCstd})	
+    if output_is_sparse:
+        if do_nodiag:
+            SCmean.setdiag(0)
+            SCstd.setdiag(0)
+            
+        if outfile.endswith(".mat"):
+            savemat(outfile,{"SC":SCmean.astype(np.double)},format='5',do_compression=True)
+        elif outfile.endswith(".pkl"):
+            pickle.dump(SCmean, open(outfile, "wb"))
+        elif outfile.endswith(".npz"):
+            sparse.save_npz(outfile,SCmean)
         else:
-            np.savetxt(outfile_stdev,SCstd,"%f")
+            raise ValueError("Sparse output file must be .mat, .pkl, or .npz: %s" % (outfile))
+            
+        if outfile_stdev is not None:
+            if outfile_stdev.endswith(".mat"):
+                savemat(outfile_stdev,{"SC":SCstd.astype(np.double)},format='5',do_compression=True)
+            elif outfile_stdev.endswith(".pkl"):
+                pickle.dump(SCstd, open(outfile_stdev, "wb"))
+            elif outfile_stdev.endswith(".npz"):
+                sparse.save_npz(outfile_stdev,SCstd)
+            else:
+                raise ValueError("Sparse output file must be .mat, .pkl, or .npz: %s" % (outfile_stdev))
+    else:
+        if do_nodiag:
+            SCmean[np.eye(SCmean.shape[0])>0]=0
+            SCstd[np.eye(SCstd.shape[0])>0]=0
+        
+        if do_triu and do_nodiag:
+            SCmean=np.atleast_2d(SCmean[np.triu(np.ones(SCmean.shape),k=1)>0])
+            SCstd=np.atleast_2d(SCstd[np.triu(np.ones(SCstd.shape),k=1)>0])
+        elif do_triu:
+            SCmean=np.atleast_2d(SCmean[np.triu(np.ones(SCmean.shape),k=0)>0])
+            SCstd=np.atleast_2d(SCstd[np.triu(np.ones(SCstd.shape),k=0)>0])
+        
+        if outfile.endswith(".mat"):
+            savemat(outfile,{"SC":SCmean})	
+        else:
+            np.savetxt(outfile,SCmean,"%f")
+        
+        if outfile_stdev is not None:
+            if outfile_stdev.endswith(".mat"):
+                savemat(outfile_stdev,{"SC":SCstd})	
+            else:
+                np.savetxt(outfile_stdev,SCstd,"%f")
 
 if __name__ == "__main__": 
     args=argument_parse_nemosc(sys.argv[1:])
     chacoconn_to_nemosc(chacofile=args.chacofile, denomfile=args.denomfile, outfile=args.outfile, outfile_stdev=args.outfilestdev,
-        roivolfile=args.roivolfile, do_triu=args.triu, do_nodiag=args.nodiag,do_onlydenom=args.onlydenom)
+        roivolfile=args.roivolfile, do_triu=args.triu, do_nodiag=args.nodiag,do_onlydenom=args.onlydenom, maxdensesize=args.maxdensesize)
