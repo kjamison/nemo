@@ -525,7 +525,6 @@ def save_chaco_output(chaco_output, delete_files=True):
             chacomean=chaconzd_mean
             chacostd=chaconzd_std
         else:
-
             chacomean=np.array(np.mean(chaco_allsubj,axis=0))
             chacostd=np.sqrt(np.clip(np.array(np.mean(chaco_allsubj.multiply(chaco_allsubj),axis=0) - chacomean**2),0,None))
     else:
@@ -542,11 +541,18 @@ def save_chaco_output(chaco_output, delete_files=True):
             for chd in chaco_denom_allsubj:
                 denom+=(chd>0).astype(np.float32)
             chacomean_denom_binfrac=denom/len(chaco_denom_allsubj)
+            #need to invert the denom to use .multiply for element-wise division
+            denom.data=1.0/denom.data
+            chacomean=chacomean.multiply(denom)
+            chacosqmean=chacosqmean.multiply(denom)
         else:
-            denom=len(chaco_allsubj)
-        chacomean/=denom
-        chacosqmean/=denom
-        chacostd=np.sqrt(chacosqmean - chacomean.multiply(chacomean))
+            chacomean/=len(chaco_allsubj)
+            chacosqmean/=len(chaco_allsubj)
+        
+        chacostd=chacosqmean - chacomean.multiply(chacomean)
+        chacostd[chacostd<0]=0
+        chacostd.eliminate_zeros()
+        chacostd=np.sqrt(chacostd)
     
         
     #this sqrt can be negative sometimes!
@@ -1221,8 +1227,6 @@ if __name__ == "__main__":
     
     
     #chaco_output_list=[chaco_output_list[0]]
-    
-    
     
     #only use 2 cores since each chacoconn uses so much memory
     P=multiprocessing.Pool(3)
