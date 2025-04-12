@@ -33,12 +33,14 @@ def make_triangular_matrix_symmetric(m):
         m+=np.tril(m,-1).T
     return m
 
-def load_input(inputfile,sym=False):
+def load_input(inputfile,sym=False,maxsize=None):
     if inputfile.lower().endswith(".txt"):
         imgdata=np.loadtxt(inputfile)
     elif inputfile.lower().endswith(".pkl"):
         imgdata=pickle.load(open(inputfile,"rb"))
     if sparse.issparse(imgdata):
+        if maxsize is not None and max(imgdata.shape) > maxsize:
+            return imgdata
         imgdata=imgdata.toarray()
     if len(imgdata.shape)==2 and imgdata.shape[0]==imgdata.shape[1]:
         imgdata=make_triangular_matrix_symmetric(imgdata)
@@ -49,14 +51,16 @@ def average_input_matrices(inputlist,sym=False,maxsize=None):
     imgshape=None
     
     for i in inputlist:
-        imgdata=load_input(i,sym)
+        imgdata=load_input(i,sym,maxsize=maxsize)
+        if sparse.issparse(imgdata):
+            return None, None
         imgdata[np.isnan(imgdata)]=0
         if avgdata is None:
             avgdata=imgdata
             imgshape=imgdata.shape
         else:
             if imgshape != imgdata.shape:
-                return None
+                return None, None
             avgdata+=imgdata
         if maxsize is None or np.isinf(maxsize):
             continue
@@ -70,7 +74,8 @@ def average_input_matrices(inputlist,sym=False,maxsize=None):
 
 def save_matrix_fig(outputfile, inputlist, colormap=None,title=None,sym=False,maxsize=None):
     avgdata,imgshape = average_input_matrices(inputlist,sym=sym,maxsize=maxsize)
-    
+    if avgdata is None:
+        return None
     if colormap is None:
         colormap="hot"
     fig=plt.figure()
