@@ -223,6 +223,15 @@ function showUploader(run_internal_script) {
     
     extra_internal_options_html='';
     extra_local_options_html='';
+    extra_options_html='';
+    
+            
+    if(default_nonzerodenom_checked)
+        nonzerodenomcheckstr="1"
+    else
+        nonzerodenomcheckstr="0"
+    extra_options_html+=['<input type="checkbox" id="nonzero_denom_checkbox" name="nonzero_denom_checkbox" value="'+nonzerodenomcheckstr+'">',
+            '<label for="nonzero_denom_checkbox">Only include subjects with non-zero denominator in local ratio <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
     
     if(run_internal_script){
         Object.assign(atlasinfo,atlasinfo_internal);
@@ -244,13 +253,7 @@ function showUploader(run_internal_script) {
         //For now, lets only offer this option for debugging purposes
         extra_internal_options_html+=['<input type="checkbox" id="continuous" name="continuous" value="1">',
         '<label for="continuous">Use continuous values for input lesion (do not binarize) <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
-        
-        if(default_nonzerodenom_checked)
-            nonzerodenomcheckstr="1"
-        else
-            nonzerodenomcheckstr="0"
-        extra_internal_options_html+=['<input type="checkbox" id="nonzero_denom_checkbox" name="nonzero_denom_checkbox" value="'+nonzerodenomcheckstr+'">',
-                '<label for="nonzero_denom_checkbox">Only include subjects with non-zero denominator in local ratio <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
+
     }
     
 
@@ -297,6 +300,7 @@ function showUploader(run_internal_script) {
         '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
         '<br/>',
         'General options:<br/>',
+        extra_options_html,
         extra_internal_options_html,
         extra_local_options_html,
         '<input type="checkbox" id="siftweights" name="siftweights" value="1" checked>',
