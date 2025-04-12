@@ -250,7 +250,7 @@ function showUploader(run_internal_script) {
         else
             nonzerodenomcheckstr="0"
         extra_internal_options_html+=['<input type="checkbox" id="nonzero_denom_checkbox" name="nonzero_denom_checkbox" value="'+nonzerodenomcheckstr+'">',
-                '<label for="nonzero_denom_checkbox">Only include subjects with non-zero denominator in local ratio</label><br/>'].join('\n');
+                '<label for="nonzero_denom_checkbox">Only include subjects with non-zero denominator in local ratio <span style="color:red">[Experimental]</span></label><br/>'].join('\n');
     }
     
 
