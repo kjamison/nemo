@@ -712,6 +712,9 @@ for tracking_algo in ${tracking_algo_list}; do
             outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
             [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
             
+            outfile=${outputbase_infile}_chacovol_${out_name}_denomfrac.pkl
+            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_denomfrac.dscalar.nii --in ${outfile}
+            
         done
         
         #generate glassbrain/matrix/graphbrain figures for all outputs for this lesion mask
