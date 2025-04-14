@@ -280,7 +280,7 @@ function showUploader(run_internal_script) {
     
     extra_algo_html=['<label for="tracking_algorithm_select">Tractography algorithm:</label>',
     getTrackingAlgoSelectHtml("tracking_algorithm_select"),
-    '<div class="algo_description">(See <a href="https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html"  target="_blank" rel="noopener noreferrer">MRtrix3 tckgen documentation</a>)</div>',
+    '<div class="algo_description">(<a href="https://github.com/kjamison/nemo?tab=readme-ov-file#select-tractography-algorithm" target="_blank">[Help]</a>, see <a href="https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html"  target="_blank" rel="noopener noreferrer">MRtrix3 tckgen documentation</a>)</div>',
     '<br/><br/>'].join("\n");
     
     var htmlTemplate = [
@@ -299,7 +299,7 @@ function showUploader(run_internal_script) {
         '</div>',
         '<div class="mninote" style="color:red">Make sure your file names do not include any identifiable information!<br/></div>',
         '<br/>',
-        'General options:<br/>',
+        'General options <a href="https://github.com/kjamison/nemo?tab=readme-ov-file#general-options" target="_blank">[Help]</a>:<br/>',
         extra_options_html,
         extra_internal_options_html,
         extra_local_options_html,
@@ -310,10 +310,10 @@ function showUploader(run_internal_script) {
         extra_algo_html,
         '<label for="addres_select">Add output resolution:</label>',
         getResolutionSelectHtml("addres_select"),
-        '<br/>',
+        '<a href="https://github.com/kjamison/nemo?tab=readme-ov-file#add-resolutions-and-parcellations" target="_blank">[Help]</a><br/>',
         '<label for="addparc_select">Add output parcellation:</label>',
         getParcSelectHtml("addparc_select"),
-        '<br/>',
+        '<a href="https://github.com/kjamison/nemo?tab=readme-ov-file#add-resolutions-and-parcellations" target="_blank">[Help]</a><br/>',
         '<div class="parcdiv_top"></div>',
         '<div id="resdiv"></div><div id="parcdiv"></div>',
         '<br/>',
