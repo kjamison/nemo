@@ -24,8 +24,9 @@ mkdir -p ${NEMODIR}
 
 tagfile=${HOME}/nemo_tags.json
 
-instanceid=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id)
-region=$(curl --silent --fail http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
+IMDSTOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+instanceid=$(curl -sf -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+region=$(curl --silent --fail -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
 aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > ${tagfile}
 
 #Download the config file and append it to the ec2 instance tags
