@@ -261,6 +261,9 @@ function showUploader(run_internal_script) {
         extra_html+=['<input type="checkbox" id="debug" name="debug" value="1">',
         '<label for="debug">Run in debug mode</label><br/>'].join('\n');
         
+        extra_html+=['<input type="checkbox" id="ec2dev" name="ec2dev" value="1">',
+        '<label for="ec2dev">Use DEV EC2 config</label><br/>'].join('\n');
+        
         extra_html+=['<button id="add_all_atlases" onclick="addAllAtlases()">Add all atlases</button>',
         '<button id="set_all_dilations0" onclick="setAllDilations(0)">Dilation 0</button>',
         '<button id="set_all_dilations1" onclick="setAllDilations(1)">Dilation 1</button>',
@@ -672,7 +675,8 @@ function submitMask() {
     var outputlocation = document.getElementById("outputlocation");
     var cocopassword = document.getElementById("coco_password");
     var debug_input = document.getElementById("debug");
-
+    var ec2dev_input = document.getElementById("ec2dev");
+    
     var cumulative = false;
     if(document.getElementById("cumulative"))
         cumulative = document.getElementById("cumulative").checked;
@@ -863,6 +867,7 @@ function submitMask() {
         {Key: 'status_suffix', Value: uploadStatusSuffix}];
 
     if (debug_input) taglist.push({Key: 'debug', Value: debug_input.checked});
+    if (ec2dev_input && ec2dev_input.checked) taglist.push({Key: 'ec2dev', Value: ec2dev_input.checked});
     
     var config_taglist=taglist.concat(dict2jsonkeyval(nemo_version_info));
     config_taglist=config_taglist.concat([{Key: 'smoothing', Value: smoothing}, {Key: 'siftweights', Value: siftweights}, {Key: 'cumulative', Value: cumulative},

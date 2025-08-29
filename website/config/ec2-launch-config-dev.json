@@ -1,0 +1,34 @@
+{
+    "ami": "ami-0b794cb16e03393ff",
+    "region": "us-east-1",
+    "instance_type": "r5a.4xlarge",
+    "ssh_key_name": "kjwcm",
+    "security_group_ids": [
+        "sg-0d34eb76cd42d74fe"
+    ],
+    "iam_instance_profile": {
+        "Name": "nemo_ec2_role"
+    },
+    "block_device_mapping": [{
+        "DeviceName": "/dev/sda1",
+        "Ebs": {
+            "VolumeType": "gp2",
+            "VolumeSize": 750,
+            "DeleteOnTermination": true
+        }
+    }],
+    "MetadataOptions": {
+        "HttpTokens": "required",
+        "HttpPutResponseHopLimit": 1,
+        "HttpEndpoint": "enabled"
+    },
+    "instance_initiated_shutdown_behavior": "terminate",
+    "filter_tag_key": "Name",
+    "filter_tag_value": "NeMo-runner",
+    "set_new_instance_tags": [
+        {
+            "Key": "Name",
+            "Value": "NeMo-runner"
+        }
+    ]
+}

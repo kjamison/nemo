@@ -201,7 +201,8 @@ def sendCompletionEmail(useremail, duration_string, filesize_string, downloadurl
 def lambda_handler(raw_event, context):
     #print(f"Received raw event: {raw_event}")
     # event = raw_event['Records']
-
+    global CONFIG_FILE_KEY
+    
     for record in raw_event['Records']:
         bucket = record['s3']['bucket']['name']
         key = unquote_plus(record['s3']['object']['key'])
@@ -256,6 +257,9 @@ def lambda_handler(raw_event, context):
             
             if 'outputlocation' in s3tagdict:
                 del s3tagdict['outputlocation']
+            
+            if 'ec2dev' in s3tagdict:
+                CONFIG_FILE_KEY="config/ec2-launch-config-dev.json"
             
             # get config from config file stored in S3
             result = S3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=CONFIG_FILE_KEY)
