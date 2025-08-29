@@ -533,7 +533,7 @@ fi
 
 for parctmp_file in ${parcfile_testsize_list}; do
     parctmp_imgsize=$(python check_input_dimensions.py ${parctmp_file})
-    #parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap jet ${binarizearg} ${parctmp_file})
+    #parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap Spectral_r ${binarizearg} ${parctmp_file})
     if [ -z "${parctmp_imgsize}" ]; then
         input_check_status="error"
         failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
@@ -550,7 +550,7 @@ done
 
 #if size checks passed, save the glassbrain preview
 if [ "${input_check_status}" = "success" ]; then
-    python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
+    python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
     if [ ! -e "${input_lesion_image}" ]; then
         input_check_status="error"
         failmessage="Unable to validate input volumne(s)"
@@ -817,7 +817,7 @@ echo "# Finished processing input list" >> ${logfile}
 date --utc >> ${logfile} #print ending timestamp after lesionmask loop
 
 if [ "${success_count}" -gt "${success_count_minimum}" ]; then
-    python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
+    python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
     for out_name in ${output_namelist}; do
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.nii.gz 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then

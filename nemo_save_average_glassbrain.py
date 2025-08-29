@@ -111,7 +111,7 @@ def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_
         vmax=np.percentile(avgdata,maxpercentile)
 
     imgavg=nib.Nifti1Image(avgdata,affine=refimg.affine, header=refimg.header)
-    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,vmax=vmax)
+    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,vmax=vmax,threshold=0)
 
     return imgshape
 

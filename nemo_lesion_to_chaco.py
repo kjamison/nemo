@@ -1238,7 +1238,7 @@ if __name__ == "__main__":
     #save lesion glassbrain here so we have a record of the EXACT input used internally 
     imglesion_mni=nib.Nifti1Image(Ldata,affine=refimg.affine, header=refimg.header)
     imgfile_lesion=outputbase+'_glassbrain_lesion_orig.png'
-    plotting.plot_glass_brain(imglesion_mni,output_file=imgfile_lesion,cmap='jet',colorbar=True)
+    plotting.plot_glass_brain(imglesion_mni,output_file=imgfile_lesion,cmap='Spectral_r',colorbar=True,threshold=0)
     
     #os.rmdir(tmpdir)
     shutil.rmtree(tmpdir)

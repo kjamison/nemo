@@ -111,7 +111,7 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
         
         if bgparcellation is None:
             if len(bgimgshape)<3:
-                print("Missing bgparcellation for this parcellated bginput.",file=file.stderr)
+                print("Missing bgparcellation for this parcellated bginput.",file=sys.stderr)
                 return None
             refimg=nib.load(bginputlist[0])
         else:
@@ -126,7 +126,7 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
             bgvmax=np.percentile(bgavgdata,bgmaxpercentile)
             
         bgimgavg=nib.Nifti1Image(bgavgdata,affine=refimg.affine, header=refimg.header)
-        display=plotting.plot_glass_brain(bgimgavg,cmap=bgcolormap,title=title,vmax=bgvmax,colorbar=False)
+        display=plotting.plot_glass_brain(bgimgavg,cmap=bgcolormap,title=title,vmax=bgvmax,colorbar=False,threshold=0)
         
         display.add_graph(avgdata, nodexyz,
                           node_size=nodesizes,
