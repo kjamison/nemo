@@ -1,6 +1,6 @@
 import numpy as np
 import nibabel as nib
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import distance_transform_edt
 import sys
 import argparse
 
