@@ -66,8 +66,15 @@ if __name__ == "__main__":
 	print('Saving %s took %.3f seconds' % (outfile_asum,time.time()-starttime))
 
 	#subj x voxels
-	#note: for some reason Asum_weighted was saved as (1 x 7M)
-	Asum_weighted_allsubj=sparse.vstack([loadmat(x,variable_names=['Asum_weighted'])['Asum_weighted'].astype(np.float32) for x in sparsefiles]).tocsr()
+	
+	Asum_weighted_shape=loadmat(sparsefiles[0],variable_names=['Asum_weighted'])['Asum_weighted'].shape
+	if Asum_weighted_shape[0]==1:
+		#note: for some reason Asum_weighted was saved as (1 x 7M)
+		Asum_weighted_allsubj=sparse.vstack([loadmat(x,variable_names=['Asum_weighted'])['Asum_weighted'].astype(np.float32) for x in sparsefiles]).tocsr()
+	else:
+		#but normally should have been saved as VOX x 1 like Asum
+		Asum_weighted_allsubj=sparse.hstack([loadmat(x,variable_names=['Asum_weighted'])['Asum_weighted'].astype(np.float32) for x in sparsefiles]).T.tocsr()
+	
 	print(Asum_weighted_allsubj.shape)
 	print(100*Asum_weighted_allsubj.nnz/np.prod(Asum_weighted_allsubj.shape))
 	print(type(Asum_weighted_allsubj))

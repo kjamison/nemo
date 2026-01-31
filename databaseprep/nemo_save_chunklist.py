@@ -15,6 +15,7 @@ def argument_parse():
     parser.add_argument('--ref','-r',action='store', dest='refvolfile')
     parser.add_argument('--algo','-a',action='store', dest='algo',default='ifod2act5Mfsl')
     parser.add_argument('--numtracks','-n',action='store', dest='numtracks',default='5M')
+    parser.add_argument('--chunkvox','-c',action='store', type=int, dest='chunkvoxsize',default=10)
 
     return parser.parse_args()
 
@@ -27,7 +28,8 @@ if __name__ == "__main__":
     algo=args.algo
     numtrackstr=args.numtracks
     refvolfile=args.refvolfile
-    
+    chunkvoxsize=args.chunkvoxsize
+	
     subjfid=open(subjectlistfile,'r')
     subjects=[x.strip() for x in subjfid.readlines()]
     subjfid.close()
@@ -44,7 +46,6 @@ if __name__ == "__main__":
     else:
         volshape=np.array([182,218,182])
     
-    chunkvoxsize=10
     chunksize=chunkvoxsize*chunkvoxsize*chunkvoxsize
     chunkvec_x=np.int32(np.floor(np.arange(volshape[0])/chunkvoxsize))
     chunkvec_y=np.int32(np.floor(np.arange(volshape[1])/chunkvoxsize))
@@ -66,20 +67,20 @@ if __name__ == "__main__":
     subject_sparsefiles=[]
     numtracks=None
     for isubj,subj in enumerate(subjects):
-    	sparsefile='%s/mnitracks_%s_%s/%s_%s_%s_MNI_sparsemat.mat' % (fileroot,subj,algo,subj,algo,numtrackstr)
-    	subject_sparsefiles.append(sparsefile)
-    	Atmp=loadmat(sparsefile,variable_names=['Asum'])['Asum']
-    	if isubj == 0:
-    		Asum=Atmp
-    		print(Asum.shape)
-    	else:
-    		Asum+=Atmp
-		
-    	if numtracks is None:
-    	    numtracks=loadmat(sparsefile,variable_names=['track_weights'])['track_weights'].size
-	    
-    	if isubj > 0 and isubj % 5 == 0:
-    		print('Loading %d/%d took %.3f seconds' % (isubj,len(subjects),time.time()-starttime))
+        sparsefile='%s/mnitracks_%s_%s/%s_%s_%s_MNI_sparsemat.mat' % (fileroot,subj,algo,subj,algo,numtrackstr)
+        subject_sparsefiles.append(sparsefile)
+        Atmp=loadmat(sparsefile,variable_names=['Asum'])['Asum']
+        if isubj == 0:
+            Asum=Atmp
+            print(Asum.shape)
+        else:
+            Asum+=Atmp
+
+        if numtracks is None:
+            numtracks=loadmat(sparsefile,variable_names=['track_weights'])['track_weights'].size
+
+        if isubj > 0 and isubj % 5 == 0:
+            print('Loading %d/%d took %.3f seconds' % (isubj,len(subjects),time.time()-starttime))
 
     #Asum=Asum.todense().squeeze()
     Asum=np.array(Asum.todense()).squeeze()

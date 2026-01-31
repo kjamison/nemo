@@ -109,13 +109,15 @@ if __name__ == "__main__":
 
 	#np.save(outfile,np.append(endpoint1,endpoint2,axis=0))
 	#print('Final saving took %.3f seconds' % (time.time()-starttime))
-
+	
 	print('Starting to join %s' % (outfile))
 	starttime=time.time()
 	endpoint1=[]
 	endpoint2=[]
 	for pi in range(numsubjsplits):
 		subjlist_split=list(compress(subjects,subjsplitidx==pi))
+		if len(subjlist_split)==0:
+			continue
 		outfile1_split='%s_split%02d_endpoint1.npy' % (outfile,pi)
 		outfile2_split='%s_split%02d_endpoint2.npy' % (outfile,pi)
 		endpoint1.append(np.load(outfile1_split))

@@ -41,7 +41,7 @@ def savefigure(m):
 
     imgchaco=nib.Nifti1Image(np.reshape(roivol_chaco_allref,volshape),affine=parcelimg.affine, header=parcelimg.header)
 
-    plotting.plot_glass_brain(imgchaco,output_file=imgfilename,colorbar=True)
+    plotting.plot_glass_brain(imgchaco,output_file=imgfilename,colorbar=True,threshold=0)
 
 multiproc_cores=15
 P=multiprocessing.Pool(multiproc_cores)

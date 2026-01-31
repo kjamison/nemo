@@ -18,7 +18,8 @@ def argument_parse():
 	parser.add_argument('--lesionfile',action='store', dest='lesionfile')
 	parser.add_argument('--algo','-a',action='store', dest='algo',default='ifod2act5Mfsl')
 	parser.add_argument('--numtracks','-n',action='store', dest='numtracks',default='5M')
-
+	parser.add_argument('--compress','-z',action='store_true', dest='compress')
+	
 	return parser.parse_args()
     
 #takes 60 seconds per subject for full 2280 set with csr_matrix(A) up front
@@ -51,7 +52,7 @@ def savechunks(sparselist,subjsplitidx,whichsplit):
 		nowtime=time.time()
 		print('split=%3d subj=%5d %.3f seconds (%.3f/subj)' % (whichsplit,isp,nowtime-starttime,(nowtime-starttime)/(isp+1)))
 
-def mergechunks(chunklist, chunksplitidx, whichsplit):
+def mergechunks(chunklist, chunksplitidx, whichsplit, do_compress=False):
 	#externals: outdir
 	chunklist_split=list(compress(chunklist,chunksplitidx==whichsplit))
 	for ich,whichchunk in enumerate(chunklist_split):
@@ -61,7 +62,7 @@ def mergechunks(chunklist, chunksplitidx, whichsplit):
 			chunkfilename_subj=outdir+'/chunkdir%05d/chunk%05d_subj%05d.npz' % (whichchunk,whichchunk,isp)
 			subjchunkA.append(sparse.load_npz(chunkfilename_subj))
 		chunkfilename=chunkfile_fmt % (whichchunk)
-		sparse.save_npz(chunkfilename,sparse.vstack(subjchunkA),compressed=False)
+		sparse.save_npz(chunkfilename,sparse.vstack(subjchunkA),compressed=do_compress)
 		if ich > 0 and ich % 10 == 0:
 			print('split=%3d %d/%d merged: %.3f seconds' % (whichsplit,ich,len(chunklist_split),time.time()-startchunktime))
 
@@ -73,7 +74,8 @@ if __name__ == "__main__":
 	lesionfile=args.lesionfile
 	algo=args.algo
 	numtrackstr=args.numtracks
-
+	do_compress=args.compress
+	
 	#subjfid=open(subjectlistfile,'r')
 	#subjects=[x.strip() for x in subjfid.readlines()]
 	#subjfid.close()
@@ -152,7 +154,7 @@ if __name__ == "__main__":
 	startmergetime=time.time()
 	processes=[]
 	for pi in range(numchunksplits):
-		p=multiprocessing.Process(target=mergechunks,args=(chunks_to_save,chunksplitidx,pi))
+		p=multiprocessing.Process(target=mergechunks,args=(chunks_to_save,chunksplitidx,pi,do_compress))
 		processes.append(p)
 		p.start()
 
