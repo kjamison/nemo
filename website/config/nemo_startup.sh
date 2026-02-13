@@ -17,50 +17,64 @@ export PATH=/home/ubuntu/bin:$PATH
 
 env
 
+
+IMDSTOKEN=$(curl -sS --connect-timeout 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+
+isAWS=1
+if [ "x${IMDSTOKEN}" = "x" ]; then
+    isAWS=0
+fi
+
 ###################################
+WORKROOT=${HOME}
 NEMODIR=${HOME}/nemo2
 mkdir -p ${NEMODIR}
 ###################################
 
-tagfile=${HOME}/nemo_tags.json
 
-IMDSTOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+tagfile=${WORKROOT}/nemo_tags.json
+
 instanceid=$(curl -sf -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 region=$(curl --silent --fail -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
 aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > ${tagfile}
 
 #Download the config file and append it to the ec2 instance tags
 s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' ${tagfile})
-aws s3 cp s3://${s3path}_config.json $HOME/tmp_config.json --no-progress
-jq --raw-output '.[]' $HOME/tmp_config.json >> ${tagfile}
-rm -f $HOME/tmp_config.json
+aws s3 cp s3://${s3path}_config.json $WORKROOT/tmp_config.json --no-progress
+jq --raw-output '.[]' $WORKROOT/tmp_config.json >> ${tagfile}
+rm -f $WORKROOT/tmp_config.json
 
-#(note: there might be duplicates between instance tags and config, so take head -n1)
-nemo_version=$(jq --raw-output 'select(.Key=="nemo_version") | .Value' ${tagfile} | head -n1)
-nemo_version_date=$(jq --raw-output 'select(.Key=="nemo_version_date") | .Value' ${tagfile} | head -n1)
-s3nemoroot=$(jq --raw-output 'select(.Key=="s3nemoroot") | .Value' ${tagfile} | head -n1)
-s3configbucket=$(jq --raw-output 'select(.Key=="s3configbucket") | .Value' ${tagfile} | head -n1)
-origfilename_raw=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | head -n1)
-origfilename=$(jq --raw-output 'select(.Key=="filename") | .Value' ${tagfile} | tr " " "_" | head -n1)
-origtimestamp=$(jq --raw-output 'select(.Key=="timestamp") | .Value' ${tagfile} | head -n1)
-origtimestamp_unix=$(jq --raw-output 'select(.Key=="unixtime") | .Value' ${tagfile} | head -n1)
-email=$(jq --raw-output 'select(.Key=="email") | .Value' ${tagfile} | head -n1)
-output_allref=$(jq --raw-output 'select(.Key=="output_allref") | .Value' ${tagfile} | tr "[A-Z]" "[a-z]" | head -n1)
-do_smoothing=$(jq --raw-output 'select(.Key=="smoothing") | .Value' ${tagfile} | head -n1)
-do_siftweights=$(jq --raw-output 'select(.Key=="siftweights") | .Value' ${tagfile} | head -n1)
-do_cumulative=$(jq --raw-output 'select(.Key=="cumulative") | .Value' ${tagfile} | head -n1)
-smoothfwhm=$(jq --raw-output 'select(.Key=="smoothfwhm") | .Value' ${tagfile} | head -n1)
-smoothmode=$(jq --raw-output 'select(.Key=="smoothmode") | .Value' ${tagfile} | head -n1)
-s3direct_outputlocation=$(jq --raw-output 'select(.Key=="s3direct_outputlocation") | .Value' ${tagfile} | head -n1)
-status_suffix=$(jq --raw-output 'select(.Key=="status_suffix") | .Value' ${tagfile} | head -n1)
-output_prefix_list=$(jq --raw-output 'select(.Key=="output_prefix_list") | .Value' ${tagfile} | head -n1)
-do_debug=$(jq --raw-output 'select(.Key=="debug") | .Value' ${tagfile} | head -n1)
-tracking_algo_selection=$(jq --raw-output 'select(.Key=="tracking_algorithm") | .Value' ${tagfile} | head -n1)
-do_continuous=$(jq --raw-output 'select(.Key=="continuous") | .Value' ${tagfile} | head -n1)
-endpointmaskname=$(jq --raw-output 'select(.Key=="endpointmask") | .Value' ${tagfile} | head -n1)
+cp -f ${tagfile} ${tagfile}.orig
+
+#create a config json file with all the tags for easier parsing later (note: there might be duplicates between instance tags and config, so take head -n1)
+echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > $WORKROOT/tmp_config.json
+mv $WORKROOT/tmp_config.json ${tagfile}
+
+nemo_version=$(jq --raw-output '.nemo_version // empty' ${tagfile})
+nemo_version_date=$(jq --raw-output '.nemo_version_date // empty' ${tagfile})
+s3nemoroot=$(jq --raw-output '.s3nemoroot // empty' ${tagfile})
+s3configbucket=$(jq --raw-output '.s3configbucket // empty' ${tagfile})
+origfilename_raw=$(jq --raw-output '.filename // empty' ${tagfile})
+origfilename=$(jq --raw-output '.filename // empty' ${tagfile} | tr " " "_")
+origtimestamp=$(jq --raw-output '.timestamp // empty' ${tagfile})
+origtimestamp_unix=$(jq --raw-output '.unixtime // empty' ${tagfile})
+email=$(jq --raw-output '.email // empty' ${tagfile})
+output_allref=$(jq --raw-output '.output_allref // empty' ${tagfile} | tr "[A-Z]" "[a-z]")
+do_smoothing=$(jq --raw-output '.smoothing // empty' ${tagfile})
+do_siftweights=$(jq --raw-output '.siftweights // empty' ${tagfile})
+do_cumulative=$(jq --raw-output '.cumulative // empty' ${tagfile})
+smoothfwhm=$(jq --raw-output '.smoothfwhm // empty' ${tagfile})
+smoothmode=$(jq --raw-output '.smoothmode // empty' ${tagfile})
+s3direct_outputlocation=$(jq --raw-output '.s3direct_outputlocation // empty' ${tagfile})
+status_suffix=$(jq --raw-output '.status_suffix // empty' ${tagfile})
+output_prefix_list=$(jq --raw-output '.output_prefix_list // empty' ${tagfile})
+do_debug=$(jq --raw-output '.debug // empty' ${tagfile})
+tracking_algo_selection=$(jq --raw-output '.tracking_algorithm // empty' ${tagfile})
+do_continuous=$(jq --raw-output '.continuous // empty' ${tagfile})
+endpointmaskname=$(jq --raw-output '.endpointmask // empty' ${tagfile})
+do_only_nonzero_denom=$(jq --raw-output '.only_nonzero_denom // empty' ${tagfile})
+
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
-do_only_nonzero_denom=$(jq --raw-output 'select(.Key=="only_nonzero_denom") | .Value' ${tagfile} | head -n1)
-
 inputbucket=$(echo $s3path | awk -F/ '{print $1}')
 outputbucket=${inputbucket}
 
@@ -84,16 +98,16 @@ s3filename=$(basename $s3path)
 s3filename_noext=$(echo ${s3filename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 origfilename_noext=$(echo ${origfilename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 
-aws s3 cp s3://${s3path} $HOME/${s3filename} --no-progress
+aws s3 cp s3://${s3path} ${WORKROOT}/${s3filename} --no-progress
 
 s3lower=$(echo $s3filename | tr "[A-Z]" "[a-z]")
 
 case ${s3lower} in 
     *.nii|*.nii.gz)
         inputtype="nifti"
-        unzipdir=${HOME}/nemo_input_${s3filename_noext}
+        unzipdir=${WORKROOT}/nemo_input_${s3filename_noext}
         mkdir -p ${unzipdir}
-        cp -f $HOME/${s3filename} ${unzipdir}/${origfilename}
+        cp -f ${WORKROOT}/${s3filename} ${unzipdir}/${origfilename}
         ;;
         
     *.zip)
@@ -101,30 +115,30 @@ case ${s3lower} in
         
         #echo "zip not supported"
         #exit 1
-        unzipdir=${HOME}/nemo_unzip_${s3filename_noext}
+        unzipdir=${WORKROOT}/nemo_unzip_${s3filename_noext}
         mkdir -p ${unzipdir}
-        (cd ${unzipdir} && unzip -jo ${HOME}/${s3filename})
+        (cd ${unzipdir} && unzip -jo ${WORKROOT}/${s3filename})
         ;;
     *.tar)
         inputtype="tar"
         #echo "tar not supported"
         #exit 1
-        unzipdir=${HOME}/nemo_unzip_${s3filename_noext}
+        unzipdir=${WORKROOT}/nemo_unzip_${s3filename_noext}
         mkdir -p ${unzipdir}
-        (cd ${unzipdir} && tar -xf ${HOME}/${s3filename} --transform='s#.*\/##')
+        (cd ${unzipdir} && tar -xf ${WORKROOT}/${s3filename} --transform='s#.*\/##')
         ;;
     *.tar.gz)
         inputtype="tgz"
         #echo "tar.gz not supported"
         #exit 1
-        unzipdir=${HOME}/nemo_unzip_${s3filename_noext}
+        unzipdir=${WORKROOT}/nemo_unzip_${s3filename_noext}
         mkdir -p ${unzipdir}
-        (cd ${unzipdir} && tar -xzf ${HOME}/${s3filename} --transform='s#.*\/##')
+        (cd ${unzipdir} && tar -xzf ${WORKROOT}/${s3filename} --transform='s#.*\/##')
         ;;
     *)
 esac
 
-inputfile_listfile=${HOME}/inputfiles.txt
+inputfile_listfile=${WORKROOT}/inputfiles.txt
 inputfile_count_orig=
 inputfile_count=
 if [ -d "${unzipdir}" ]; then
@@ -138,7 +152,7 @@ if [ -d "${unzipdir}" ]; then
     fi
     inputfile_count_orig=$(cat ${inputfile_listfile}.tmp | wc -l)
     inputfile_count=$(cat ${inputfile_listfile} | wc -l)
-    rm -f ${HOME}/${s3filename}
+    rm -f ${WORKROOT}/${s3filename}
 else
     echo "${inputfiles}" > ${inputfile_listfile}
     inputfile_count=1
@@ -250,7 +264,8 @@ mkdir -p $(dirname $outputbase)
 #print a nicer version of the tags to the output directory
 output_config_file=${outputbase}_${origtimestamp}_config.json
 output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
-echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
+#echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
+cp -f ${tagfile} ${output_config_file}
 aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
 
 echo "NeMo version ${nemo_version}_${nemo_version_date}" > ${logfile}
@@ -262,7 +277,7 @@ cd ${NEMODIR}
 
 #atlaslist="aal cc200 cc400"
 
-atlasdir=$HOME/nemo_atlases
+atlasdir=${WORKROOT}/nemo_atlases
 atlaslistfile=${atlasdir}/atlas_list.json
 
 #aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz" --no-progress
@@ -299,14 +314,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     if [[ $o == addparc* ]]; then
         out_type="parc"
         #_name,_allref,_pairwise,_filekey?
-        out_name=$(jq --raw-output 'select(.Key=="'${o}_name'") | .Value' ${tagfile} | head -n1)
-        out_filekey=$(jq --raw-output 'select(.Key=="'${o}_filekey'") | .Value' ${tagfile} | head -n1)
+        out_name=$(jq --raw-output '.'${o}'_name // empty' ${tagfile})
+        out_filekey=$(jq --raw-output '.'${o}'_filekey // empty' ${tagfile})
         
-        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
-        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
-        out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
-        out_dilation=$(jq --raw-output 'select(.Key=="'${o}_dilation'") | .Value' ${tagfile} | head -n1)
-        out_numroi=$(jq --raw-output 'select(.Key=="'${o}_numroi'") | .Value' ${tagfile} | head -n1)
+        out_pairwise=$(jq --raw-output '.'${o}'_pairwise // empty' ${tagfile})
+        out_allref=$(jq --raw-output '.'${o}'_allref // empty' ${tagfile})
+        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag // empty' ${tagfile})
+        out_dilation=$(jq --raw-output '.'${o}'_dilation // empty' ${tagfile})
+        out_numroi=$(jq --raw-output '.'${o}'_numroi // empty' ${tagfile})
         
         out_filename=
         
@@ -465,12 +480,12 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     elif  [[ $o == addres* ]]; then
         out_type="res"
         #_res,_allref,_pairwise
-        out_res=$(jq --raw-output 'select(.Key=="'${o}_res'") | .Value' ${tagfile} | head -n1)
+        out_res=$(jq --raw-output '.'${o}'_res // empty' ${tagfile} )
         out_name="res${out_res}mm"
-        out_pairwise=$(jq --raw-output 'select(.Key=="'${o}_pairwise'") | .Value' ${tagfile} | head -n1)
-        out_allref=$(jq --raw-output 'select(.Key=="'${o}_allref'") | .Value' ${tagfile} | head -n1)
-        out_keepdiag=$(jq --raw-output 'select(.Key=="'${o}_keepdiag'") | .Value' ${tagfile} | head -n1)
-        out_numroi=$(jq --raw-output 'select(.Key=="'${o}_numroi'") | .Value' ${tagfile} | head -n1)
+        out_pairwise=$(jq --raw-output '.'${o}'_pairwise // empty' ${tagfile})
+        out_allref=$(jq --raw-output '.'${o}'_allref // empty' ${tagfile})
+        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag // empty' ${tagfile})
+        out_numroi=$(jq --raw-output '.'${o}'_numroi // empty' ${tagfile})
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
         if [ ${out_pairwise} = "false" ]; then
