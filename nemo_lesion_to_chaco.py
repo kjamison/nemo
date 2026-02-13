@@ -18,6 +18,8 @@ import pickle
 import shutil
 from itertools import repeat
 
+NUM_THREADS=None
+
 def argument_parse(arglist):
     parser=argparse.ArgumentParser(description='Read lesion mask and create voxel-wise ChaCo maps for all reference subjects')
     parser.add_argument('--lesion','-l',action='store', dest='lesion')
@@ -47,8 +49,19 @@ def argument_parse(arglist):
     parser.add_argument('--debug',action='store_true', dest='debug')
     parser.add_argument('--subjcount',action='store', dest='subjcount', type=int, help='number of reference subjects to compute (for debugging only!)')
     parser.add_argument('--onlynonzerodenom',action='store_true',dest='only_nonzero_denom', help='only include subjects with non-zero denominator for a given voxel')
+    parser.add_argument('--numthreads',action='store',dest='num_threads', type=int, help='How many threads to use for execution (default=all)')
     
     return parser.parse_args(arglist)
+
+def get_available_cpus():
+    if NUM_THREADS is not None and NUM_THREADS > 0:
+        return NUM_THREADS
+    #return multiprocessing.cpu_count()
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        #fallback for non-Linux
+        return int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
 
 def durationToString(numseconds):
     if numseconds < 60:
@@ -152,6 +165,65 @@ def checkVolumeShape(Pimg, refimg, filename_display, expected_shape, expected_sh
         shapestr=",".join([str(x) for x in Pimg.shape])
         raise(Exception('Unexpected volume size: (%s) for %s. Each input must be a SINGLE volume registered to 182x218x182 MNIv6 template (FSL template)' % (shapestr,filename_display)))
     return Pimg
+
+
+def loadParcellation(filename, numroi=None, refimg=None, expected_shape=None, expected_shape_spm=None):
+    if(filename.lower().endswith(".npz")):
+        dostart=time.time()
+        if filename.lower().endswith(".masked.npz") or filename.lower().endswith(".dense.npz"):
+            Pdata = np.load(filename, allow_pickle=True)
+            if 'mask' in Pdata:
+                Pmask = Pdata['mask']
+                Pmasked = Pdata['data']
+                Psparse_allsubj=np.zeros((Pmasked.shape[0],Pmask.shape[1]),dtype=Pmasked.dtype)
+                Psparse_allsubj[:,Pmask.ravel()>0]=Pmasked
+                Psparse_allsubj=sparse.csr_matrix(Psparse_allsubj)
+            else:
+                Psparse_allsubj=sparse.csr_matrix(Pdata['data'])
+        else:
+            Psparse_allsubj=sparse.load_npz(filename)
+        numroisubj=Psparse_allsubj.shape[0]
+
+        max_seq_roi_val=Psparse_allsubj.max()
+        if numroi is not None:
+            max_seq_roi_val=np.array(numroi)
+        #store these as csc for memory efficiency (have to convert each subject later)
+        global flat2sparse
+        def flat2sparse(isubj):
+            return flatParcellationToTransform(Psparse_allsubj, isubj, out_type="csc", max_sequential_roi_value=max_seq_roi_val)
+
+        num_cpu=get_available_cpus()
+        multiproc_cores=num_cpu-1
+        P=multiprocessing.Pool(multiproc_cores)
+        Psparse=P.map(flat2sparse,range(numroisubj))
+        P.close()
+
+        del flat2sparse
+        
+        Psparse_allsubj=None
+ 
+        numroi=Psparse[0].shape[1]
+    
+    elif(filename.lower().endswith(".pkl")):
+        #this file type assumes a list of voxel x ROI Psparse transform matrices
+        Psparse=pickle.load(open(filename,"rb"))
+        numroisubj=len(Psparse)
+        numroi=Psparse[0].shape[1]
+        numvoxels=Psparse[0].shape[0]
+    
+    else:
+        Pimg=nib.load(filename)
+        Pimg = checkVolumeShape(Pimg, refimg, filename.split("/")[-1], expected_shape, expected_shape_spm)
+        Pdata=Pimg.get_fdata()
+
+        max_seq_roi_val=None
+        if numroi is not None:
+            max_seq_roi_val=np.array(numroi)
+    
+        Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr", max_sequential_roi_value=max_seq_roi_val)
+        numroi = Psparse.shape[1]
+
+    return Psparse
 
 def smooth_sparse_vol(sparsevals, fwhm, volshape, voxmm):
     outsmooth=sparse.csr_matrix(ndimage.gaussian_filter(np.reshape(np.array(sparsevals.todense()),volshape),sigma=fwhm/2.35482/voxmm).flatten())
@@ -632,6 +704,10 @@ if __name__ == "__main__":
     tracking_algorithm=args.tracking_algorithm
     do_only_include_nonzero_subjects=args.only_nonzero_denom
     
+    numthread_arg=args.num_threads
+    if numthread_arg is not None:
+        NUM_THREADS=numthread_arg
+    
     print("Executed with the following inputs:")
     for k,v in vars(args).items():
         if v is None:
@@ -699,7 +775,7 @@ if __name__ == "__main__":
     
         if len(nemofiles_to_download) > 0:
             print('Downloading NeMo data files', end='', flush=True)
-            num_cpu=multiprocessing.cpu_count()
+            num_cpu=get_available_cpus()
             multiproc_cores=num_cpu-1
             P=multiprocessing.Pool(multiproc_cores, s3initialize)
     
@@ -733,7 +809,7 @@ if __name__ == "__main__":
     print('Cumulative track hits: ', do_cumulative_hits)
     print('Continuous-valued lesion volume: ', do_continuous)
     print('Output pairwise connectivity: ', do_pairwise)
-    print('Only include non-zero denom subjectcs: ', do_only_include_nonzero_subjects)
+    print('Only include non-zero denom subjects: ', do_only_include_nonzero_subjects)
     
     starttime=time.time()
     
@@ -820,6 +896,7 @@ if __name__ == "__main__":
             print('Output will include resolution %.1fmm (volume dimensions = %dx%dx%d)%s.' % (newvoxmm,newvolshape[0],newvolshape[1],newvolshape[2],r_pairwisestr))
     
     if parcelfiles:
+        starttime_loadparc=time.time()
         for p in parcelfiles:
             p_pairwise=do_pairwise
             p_keepdiag=False
@@ -848,47 +925,7 @@ if __name__ == "__main__":
                 pfile=p
                 pname="parc%05d" % (len(Psparse_list))
             
-            if(pfile.lower().endswith(".npz")):
-                dostart=time.time()
-                Psparse_allsubj=sparse.load_npz(pfile)
-                numroisubj=Psparse_allsubj.shape[0]
-            
-                max_seq_roi_val=Psparse_allsubj.max()
-                if p_numroi is not None:
-                    max_seq_roi_val=np.array(p_numroi)
-                #store these as csc for memory efficiency (have to convert each subject later)
-                def flat2sparse(isubj):
-                    return flatParcellationToTransform(Psparse_allsubj, isubj, out_type="csc", max_sequential_roi_value=max_seq_roi_val)
-            
-                num_cpu=multiprocessing.cpu_count()
-                multiproc_cores=num_cpu-1
-                P=multiprocessing.Pool(multiproc_cores)
-                Psparse=P.map(flat2sparse,range(numroisubj))
-                P.close()
-            
-                Psparse_allsubj=None
-             
-                numroi=Psparse[0].shape[1]
-                
-            elif(pfile.lower().endswith(".pkl")):
-                #this file type assumes a list of voxel x ROI Psparse transform matrices
-                Psparse=pickle.load(open(pfile,"rb"))
-                numroisubj=len(Psparse)
-                numroi=Psparse[0].shape[1]
-                numvoxels=Psparse[0].shape[0]
-                
-            else:
-                Pimg=nib.load(pfile)
-                Pimg = checkVolumeShape(Pimg, refimg, pfile.split("/")[-1], expected_shape, expected_shape_spm)
-                Pdata=Pimg.get_fdata()
-            
-                max_seq_roi_val=None
-                if p_numroi is not None:
-                    max_seq_roi_val=np.array(p_numroi)
-                
-                Psparse = flatParcellationToTransform(Pdata.flatten(), None, out_type="csr", max_sequential_roi_value=max_seq_roi_val)
-                numroi = Psparse.shape[1]
-            
+            Psparse=loadParcellation(filename=pfile, numroi=p_numroi, refimg=refimg, expected_shape=expected_shape, expected_shape_spm=expected_shape_spm)
             
             Psparse_list.append({'transform': Psparse, 'reshape': None, 'voxmm': None, 'name': pname, 'pairwise': p_pairwise, 'displayvol': p_displayvol, 'keepdiag': p_keepdiag})
         
@@ -899,10 +936,12 @@ if __name__ == "__main__":
                 p_pairwisestr+=", include diagonal in region-wise chacovol"
             
             if isinstance(Psparse,list):
+                numroi=Psparse[0].shape[1]
                 print('Output will include subject-specific parcellation %s (%s, total parcels = %d)%s.' % (pname,pfile.split("/")[-1],numroi,p_pairwisestr))
             else:
+                numroi=Psparse.shape[1]
                 print('Output will include parcellation %s (%s, total parcels = %d)%s.' % (pname,pfile.split("/")[-1],numroi,p_pairwisestr))
-            
+        print('Loading parcellations took %s' % (durationToString(time.time()-starttime_loadparc)))
     #if parcelfiles_subject_specific:
     #    for p in parcelfiles_subject_specific:
             #250MB for 20 subjects as a 20x7M sparse matrix. would be 5GB for 420 subjects. only 48MB for 20subj compressed, so 1GB
@@ -955,7 +994,7 @@ if __name__ == "__main__":
         if len(chunkfiles_to_download) > 0:
             print('Downloading %d chunks (%s)' % (len(chunkfiles_to_download), totalchunkbytes_download_string), end='', flush=True)
             starttime_download_chunks=time.time()
-            num_cpu=multiprocessing.cpu_count()
+            num_cpu=get_available_cpus()
             multiproc_cores=num_cpu-1
             P=multiprocessing.Pool(multiproc_cores, s3initialize)
             
@@ -1000,7 +1039,7 @@ if __name__ == "__main__":
     
     ###########################################################
     
-    num_cpu=multiprocessing.cpu_count()
+    num_cpu=get_available_cpus()
     multiproc_cores=num_cpu-1
     P=multiprocessing.Pool(multiproc_cores)
     
