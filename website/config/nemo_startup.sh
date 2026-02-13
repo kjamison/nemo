@@ -226,6 +226,12 @@ else
     done
 fi
 
+############
+
+PYCMD="python"
+NEMOSCRIPTDIR=${NEMODIR}
+
+############
 outputsuffix_start="nemo_output"
 
 outputdir=${HOME}/${outputsuffix_start}_${s3filename_noext}
@@ -325,7 +331,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 #Dilate the parcellation by x mm to make sure we catch nearby streamlines
                 out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
                 echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
-                python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
+                ${PYCMD} ${NEMOSCRIPTDIR}/dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
                 out_filename=${out_filename_dilated}
             fi
             
@@ -359,7 +365,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                         #Dilate the parcellation by x mm to make sure we catch nearby streamlines
                         out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
                         echo "Dilating parcellation volume by ${out_dilation}mm. New parcellation: ${out_filename_dilated}"
-                        python dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
+                        ${PYCMD} ${NEMOSCRIPTDIR}/dilate_parcellation.py -dilatemm ${out_dilation} ${out_filename} ${out_filename_dilated}
                         out_filename=${out_filename_dilated}
                     fi
                 elif [ "x${out_dilation_fmt}" != x ]; then
@@ -519,7 +525,7 @@ input_status_tagstring='password_status=success'
 input_check_status="success"
 
 testsize_expected="182x218x182 181x217x181"
-imgsize=$(python check_input_dimensions.py $(cat ${inputfile_listfile}))
+imgsize=$(${PYCMD} ${NEMOSCRIPTDIR}/check_input_dimensions.py $(cat ${inputfile_listfile}))
 if [ -z "${imgsize}" ]; then
     input_check_status="error"
     failmessage="Input lesion masks are not all the same dimensions"
@@ -533,8 +539,7 @@ else
 fi
 
 for parctmp_file in ${parcfile_testsize_list}; do
-    parctmp_imgsize=$(python check_input_dimensions.py ${parctmp_file})
-    #parctmp_imgsize=$(python nemo_save_average_glassbrain.py --colormap Spectral_r ${binarizearg} ${parctmp_file})
+    parctmp_imgsize=$(${PYCMD} ${NEMOSCRIPTDIR}/check_input_dimensions.py ${parctmp_file})
     if [ -z "${parctmp_imgsize}" ]; then
         input_check_status="error"
         failmessage="Unable to determine dimensions of custom parcellation: $(basename $parctmp_file)"
@@ -551,7 +556,7 @@ done
 
 #if size checks passed, save the glassbrain preview
 if [ "${input_check_status}" = "success" ]; then
-    python nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
+    ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
     if [ ! -e "${input_lesion_image}" ]; then
         input_check_status="error"
         failmessage="Unable to validate input volumne(s)"
@@ -632,7 +637,7 @@ for tracking_algo in ${tracking_algo_list}; do
         echo "##########################"  >> ${logfile}
         echo "# Processing " $(basename ${inputfile}) >> ${logfile}
         date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
-        python nemo_lesion_to_chaco.py --lesion ${inputfile} \
+        ${PYCMD} ${NEMOSCRIPTDIR}/nemo_lesion_to_chaco.py --lesion ${inputfile} \
             --outputbase ${outputbase_infile} \
             --chunklist nemo${algostr}_chunklist.npz \
             --chunkdir chunkfiles${algostr} \
@@ -685,7 +690,7 @@ for tracking_algo in ${tracking_algo_list}; do
             fi
             outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
             outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_stdev.mat
-            python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
+            ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
             
             #if a file was provided with region volume information, use that to produce a volnorm version of the nemoSC
             if [ "${out_filename_roisize}" = "x" ] || [ ! -e "${out_filename_roisize}" ]; then
@@ -693,7 +698,7 @@ for tracking_algo in ${tracking_algo_list}; do
             fi
             outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
             outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
-            python chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
+            ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
         done
         
         
@@ -708,13 +713,13 @@ for tracking_algo in ${tracking_algo_list}; do
             fi
             
             outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
-            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_mean.dscalar.nii --in ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_mean.dscalar.nii --in ${outfile}
             
             outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
-            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_stdev.dscalar.nii --in ${outfile}
             
             outfile=${outputbase_infile}_chacovol_${out_name}_denomfrac.pkl
-            [ -e "${outfile}" ] && python chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_denomfrac.dscalar.nii --in ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/chacovol_to_nifti.py --ciftitemplate ${out_filename_ciftitemplate} --out ${outputbase_infile}_chacovol_${out_name}_denomfrac.dscalar.nii --in ${outfile}
             
         done
         
@@ -725,30 +730,30 @@ for tracking_algo in ${tracking_algo_list}; do
             
             # save glassbrain chacovols for normal volumetric outputs
             outfile=${outputbase_infile}_chacovol_${out_name}_mean.nii.gz
-            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
 
             outfile=${outputbase_infile}_chacovol_${out_name}_stdev.nii.gz
-            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
             
             # save glassbrain chacovols for normal volumetric outputs (smoothed versions)
             outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_mean.nii.gz 2> /dev/null | head -n1)
             if [ -e "${outfile}" ]; then
                 smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
-                python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_mean.png ${outfile}
+                ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_mean.png ${outfile}
             fi
             
             outfile=$(ls ${outputbase_infile}_chacovol_${out_name}_smooth*_stdev.nii.gz 2> /dev/null | head -n1)
             if [ -e "${outfile}" ]; then
                 smoothstr=$(echo $outfile | awk -F_ '{print $(NF-1)}')
-                python nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_stdev.png ${outfile}
+                ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_${smoothstr}_stdev.png ${outfile}
             fi
             
             # save matrix figures for chacoconn outputs
             outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_mean.png --colormap hot ${outfile} 
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_mean.png --colormap hot ${outfile} 
             
             outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_stdev.png --colormap hot ${outfile} 
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_matrix_figure.py --out ${outputbase_infile}_matrix_chacoconn_${out_name}_stdev.png --colormap hot ${outfile} 
             
             ############
             #for regionwise, if displayvol is provided, we can save those glassbrains and graphbrains
@@ -758,17 +763,17 @@ for tracking_algo in ${tracking_algo_list}; do
             fi
             
             outfile=${outputbase_infile}_chacovol_${out_name}_mean.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_mean.png ${outfile}
             
             outfile=${outputbase_infile}_chacovol_${out_name}_stdev.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --parcellation ${out_filename_displayvol} --out ${outputbase_infile}_glassbrain_chacovol_${out_name}_stdev.png ${outfile}
             
             #for regionwise chacoconn, save glassbrain/graphbrain
             outfile=${outputbase_infile}_chacoconn_${out_name}_mean.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_mean.png ${outfile} 
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_mean.png ${outfile} 
             
             outfile=${outputbase_infile}_chacoconn_${out_name}_stdev.pkl
-            [ -e "${outfile}" ] && python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_stdev.png ${outfile} 
+            [ -e "${outfile}" ] && ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputbase_infile}_graphbrain_chacoconn_${out_name}_stdev.png ${outfile} 
         done
         
         o=0
@@ -803,7 +808,7 @@ for tracking_algo in ${tracking_algo_list}; do
 
     
     #save subject list to file in output directory:
-    python -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
+    ${PYCMD} -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
     
     #delete temporary files used by this tracking algo.
     #this helps save space if we are looping through multiple algos
@@ -818,20 +823,20 @@ echo "# Finished processing input list" >> ${logfile}
 date --utc >> ${logfile} #print ending timestamp after lesionmask loop
 
 if [ "${success_count}" -gt "${success_count_minimum}" ]; then
-    python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
+    ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_lesion_orig_listmean.png --colormap jet ${binarizearg} $(cat ${inputfile_listfile})
     for out_name in ${output_namelist}; do
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.nii.gz 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
+        ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
         if [ "${do_smoothing}" = "true" ]; then
             smoothstr=$(basename $(ls ${outputdir}/*_${out_name}_smooth*.png 2>/dev/null | head -n1) 2>/dev/null | tr "_" "\n" | grep -i smooth | tail -n1)
             outfile_meanlist=$(ls ${outputdir}/*_${out_name}_${smoothstr}_mean.nii.gz 2>/dev/null)
             if [ "x${outfile_meanlist}" = "x" ] || [ "${smoothstr}" = "x" ]; then
                 continue
             fi
-            python nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
+            ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_${smoothstr}_listmean.png ${outfile_meanlist}
         fi
     done
     
@@ -843,7 +848,7 @@ if [ "${success_count}" -gt "${success_count_minimum}" ]; then
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        python nemo_save_average_matrix_figure.py --title "chacoconn_${out_name}_listmean" --colormap hot --out ${outputdir}/${origfilename_noext}_matrix_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
+        ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_matrix_figure.py --title "chacoconn_${out_name}_listmean" --colormap hot --out ${outputdir}/${origfilename_noext}_matrix_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
         
         #now save the listmean parcellated chacoconn (same outfiles as matrices)
         out_filename_displayvol=$(echo ${output_displayvollist} | cut -d" " -f$o)
@@ -851,14 +856,14 @@ if [ "${success_count}" -gt "${success_count_minimum}" ]; then
             continue
         fi
         
-        python nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputdir}/${origfilename_noext}_graphbrain_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
+        ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_graphbrain.py --nodefile ${out_filename_displayvol} --nodeview ortho --out ${outputdir}/${origfilename_noext}_graphbrain_chacoconn_${out_name}_listmean.png ${outfile_meanlist}
 
         #now save the listmean parcellated chacovol (same outfiles as matrices)
         outfile_meanlist=$(ls ${outputdir}/*_chacovol_${out_name}_mean.pkl 2>/dev/null)
         if [ "x${outfile_meanlist}" = "x" ]; then
             continue
         fi
-        python nemo_save_average_glassbrain.py  --parcellation ${out_filename_displayvol} --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
+        ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py  --parcellation ${out_filename_displayvol} --out ${outputdir}/${origfilename_noext}_glassbrain_chacovol_${out_name}_listmean.png ${outfile_meanlist}
         
     done
 fi
