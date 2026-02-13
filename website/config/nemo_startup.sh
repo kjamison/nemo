@@ -28,7 +28,16 @@ fi
 ###################################
 WORKROOT=${HOME}
 NEMODIR=${HOME}/nemo2
+NEMODATA=${HOME}/nemodata
+
+NEMOSCRIPTDIR=${NEMODIR}
+
+ATLASDIR=${HOME}/nemo_atlases
+atlaslistfile=${ATLASDIR}/atlas_list.json
+
 mkdir -p ${NEMODIR}
+mkdir -p ${NEMODATA}
+
 ###################################
 
 
@@ -243,12 +252,12 @@ fi
 ############
 
 PYCMD="python"
-NEMOSCRIPTDIR=${NEMODIR}
+
 
 ############
 outputsuffix_start="nemo_output"
 
-outputdir=${HOME}/${outputsuffix_start}_${s3filename_noext}
+outputdir=${WORKROOT}/${outputsuffix_start}_${s3filename_noext}
 outputsuffix=${outputsuffix_start}_${tracking_algo_selection}
 outputbasefile=${origfilename_noext}_${outputsuffix}
 outputbase=${outputdir}/${outputbasefile}
@@ -270,24 +279,21 @@ aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
 
 echo "NeMo version ${nemo_version}_${nemo_version_date}" > ${logfile}
 date --utc >> ${logfile}
-cd ${NEMODIR}
+#cd ${NEMODIR}
 
 #############
 # parse output space options (res, parc)
 
 #atlaslist="aal cc200 cc400"
 
-atlasdir=${WORKROOT}/nemo_atlases
-atlaslistfile=${atlasdir}/atlas_list.json
-
-#aws s3 sync s3://${config_bucket}/nemo_atlases ${atlasdir} --exclude "*.npz" --no-progress
-aws s3 sync s3://${s3nemoroot}/nemo_atlases ${atlasdir} --exclude "*.npz" --exclude "atlas_list.json" --no-progress
+#aws s3 sync s3://${config_bucket}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --no-progress
+aws s3 sync s3://${s3nemoroot}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --exclude "atlas_list.json" --no-progress
 if [ "${do_debug}" != "true" ]; then
-    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${atlasdir}/ --no-progress
+    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${ATLASDIR}/ --no-progress
 else
     #in debug mode, only copy atlas_list if it wasn't already available
-    if [ ! -e ${atlasdir}/atlas_list.json ]; then
-        aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${atlasdir}/ --no-progress
+    if [ ! -e ${ATLASDIR}/atlas_list.json ]; then
+        aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${ATLASDIR}/ --no-progress
     fi
 fi
 
@@ -335,7 +341,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         
         if [ "x${out_filekey}" != "x" ]; then
             out_filebasename=$(basename ${out_filekey})
-            out_filename=${atlasdir}/${out_filebasename}
+            out_filename=${ATLASDIR}/${out_filebasename}
             aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename} --no-progress
             if [ "${do_debug}" != "true" ]; then
                 #delete custom uploaded parc file after downloading
@@ -367,10 +373,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
             if [ "x${out_dilation}" == "x" ]; then
                 #no dilation argument, use default parcellation volume
                 out_filebasename=$(echo $atlasline | jq --raw-output '.parcfile')
-                out_filename=${atlasdir}/${out_filebasename}
+                out_filename=${ATLASDIR}/${out_filebasename}
             else
                 out_filebasename=$(echo $atlasline | jq --raw-output '.parcfile')
-                out_filename=${atlasdir}/${out_filebasename}
+                out_filename=${ATLASDIR}/${out_filebasename}
                 #when dilation argument present, fill in the "%d" in dilation format string for this atlas
                 #to get the filename with dilation
                 out_dilation_fmt=$(echo $atlasline | jq --raw-output '.parcfile_dilated_format //empty')
@@ -385,7 +391,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                     fi
                 elif [ "x${out_dilation_fmt}" != x ]; then
                     #this is used for pre-dilated subject-specific parcellations, ie fs86_dil%d_allsubj.npz
-                    out_filename=${atlasdir}/$(printf ${out_dilation_fmt} ${out_dilation})
+                    out_filename=${ATLASDIR}/$(printf ${out_dilation_fmt} ${out_dilation})
                 fi
             fi
             
@@ -402,19 +408,19 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 out_filename_ciftitemplate="${out_ciftitemplate_atlaslist}"
             fi
             if [ "x${out_filename_ciftitemplate}" != x ]; then
-                out_filename_ciftitemplate=${atlasdir}/${out_filename_ciftitemplate}
+                out_filename_ciftitemplate=${ATLASDIR}/${out_filename_ciftitemplate}
             fi
             
             #some atlases have precomputed region volumes (in native space, not MNI)
             out_roisize_atlaslist=$(echo $atlasline | jq --raw-output '.region_sizes //empty')
             if [ "x${out_roisize_atlaslist}" != x ]; then
-                out_filename_roisize=${atlasdir}/${out_roisize_atlaslist}
+                out_filename_roisize=${ATLASDIR}/${out_roisize_atlaslist}
             fi
             
             #subject-specific files have an extra entry for the display volume
             out_filename_displayvol=$(echo $atlasline | jq --raw-output '.displayvolume //empty')
             if [ "x${out_filename_displayvol}" != x ]; then
-                out_filename_displayvol=${atlasdir}/${out_filename_displayvol}
+                out_filename_displayvol=${ATLASDIR}/${out_filename_displayvol}
             fi
             
             
@@ -455,7 +461,7 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
             if [ "x${out_roilistfile}" = x ]; then
                 out_roilistfile="x" #make sure something goes into the list
             else
-                out_roilistfile=${atlasdir}/${out_roilistfile}
+                out_roilistfile=${ATLASDIR}/${out_roilistfile}
             fi
             parcarg_tmp="--parcelvol ${out_filename}=${out_name}"
         fi
@@ -632,7 +638,7 @@ for tracking_algo in ${tracking_algo_list}; do
     fi
 
     if [ "x${endpointmaskname}" != "x" ] && [ "${endpointmaskname}" != "NONE" ]; then
-        endpointmaskfile="nemo${algostr}_endpoints_mask_${endpointmaskname}.npy"
+        endpointmaskfile="${NEMODATA}/nemo${algostr}_endpoints_mask_${endpointmaskname}.npy"
         endpointmaskarg="--endpointsmask ${endpointmaskfile}"
     fi
     
@@ -654,16 +660,16 @@ for tracking_algo in ${tracking_algo_list}; do
         date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
         ${PYCMD} ${NEMOSCRIPTDIR}/nemo_lesion_to_chaco.py --lesion ${inputfile} \
             --outputbase ${outputbase_infile} \
-            --chunklist nemo${algostr}_chunklist.npz \
-            --chunkdir chunkfiles${algostr} \
-            --refvol MNI152_T1_1mm_brain.nii.gz \
-            --endpoints nemo${algostr}_endpoints.npy \
-            --asum nemo${algostr}_Asum_endpoints.npz \
-            --asum_weighted nemo${algostr}_Asum_weighted_endpoints.npz \
-            --asum_cumulative nemo${algostr}_Asum_cumulative.npz \
-            --asum_weighted_cumulative nemo${algostr}_Asum_weighted_cumulative.npz \
-            --trackweights nemo${algostr}_siftweights.npy \
-            --tracklengths nemo${algostr}_tracklengths.npy \
+            --chunklist ${NEMODATA}/nemo${algostr}_chunklist.npz \
+            --chunkdir ${NEMODATA}/chunkfiles${algostr} \
+            --refvol ${NEMODATA}/MNI152_T1_1mm_brain.nii.gz \
+            --endpoints ${NEMODATA}/nemo${algostr}_endpoints.npy \
+            --asum ${NEMODATA}/nemo${algostr}_Asum_endpoints.npz \
+            --asum_weighted ${NEMODATA}/nemo${algostr}_Asum_weighted_endpoints.npz \
+            --asum_cumulative ${NEMODATA}/nemo${algostr}_Asum_cumulative.npz \
+            --asum_weighted_cumulative ${NEMODATA}/nemo${algostr}_Asum_weighted_cumulative.npz \
+            --trackweights ${NEMODATA}/nemo${algostr}_siftweights.npy \
+            --tracklengths ${NEMODATA}/nemo${algostr}_tracklengths.npy \
             --tracking_algorithm "${tracking_algo}" ${s3arg} ${endpointmaskarg} ${weightedarg} ${cumulativearg} ${continuousarg} ${pairwisearg} \
                 ${parcelarg} ${resolutionarg} ${smoothedarg} ${smoothingfwhmarg} ${smoothingmodearg} ${debugarg} ${nonzerodenomarg} >> ${logfile} 2>&1
         
@@ -820,15 +826,14 @@ for tracking_algo in ${tracking_algo_list}; do
             ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
         fi
     done < ${inputfile_listfile}
-
     
     #save subject list to file in output directory:
-    ${PYCMD} -c 'import numpy as np; chunklist=np.load("'nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
+    ${PYCMD} -c 'import numpy as np; chunklist=np.load("'${NEMODATA}/nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
     
     #delete temporary files used by this tracking algo.
     #this helps save space if we are looping through multiple algos
     if [ "${do_debug}" != "true" ]; then
-        ls -d chunkfiles${algostr} nemo${algostr}_*.npy nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+        ls -d ${NEMODATA}/chunkfiles${algostr} ${NEMODATA}/nemo${algostr}_*.npy ${NEMODATA}/nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
     fi
 done
 ##### END ALGO LOOP
