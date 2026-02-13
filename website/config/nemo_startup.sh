@@ -59,29 +59,29 @@ cp -f ${tagfile} ${tagfile}.orig
 echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > $WORKROOT/tmp_config.json
 mv $WORKROOT/tmp_config.json ${tagfile}
 
-nemo_version=$(jq --raw-output '.nemo_version // empty' ${tagfile})
-nemo_version_date=$(jq --raw-output '.nemo_version_date // empty' ${tagfile})
-s3nemoroot=$(jq --raw-output '.s3nemoroot // empty' ${tagfile})
-s3configbucket=$(jq --raw-output '.s3configbucket // empty' ${tagfile})
-origfilename_raw=$(jq --raw-output '.filename // empty' ${tagfile})
-origfilename=$(jq --raw-output '.filename // empty' ${tagfile} | tr " " "_")
-origtimestamp=$(jq --raw-output '.timestamp // empty' ${tagfile})
-origtimestamp_unix=$(jq --raw-output '.unixtime // empty' ${tagfile})
-email=$(jq --raw-output '.email // empty' ${tagfile})
-output_allref=$(jq --raw-output '.output_allref // empty' ${tagfile} | tr "[A-Z]" "[a-z]")
-do_smoothing=$(jq --raw-output '.smoothing // empty' ${tagfile})
-do_siftweights=$(jq --raw-output '.siftweights // empty' ${tagfile})
-do_cumulative=$(jq --raw-output '.cumulative // empty' ${tagfile})
-smoothfwhm=$(jq --raw-output '.smoothfwhm // empty' ${tagfile})
-smoothmode=$(jq --raw-output '.smoothmode // empty' ${tagfile})
-s3direct_outputlocation=$(jq --raw-output '.s3direct_outputlocation // empty' ${tagfile})
-status_suffix=$(jq --raw-output '.status_suffix // empty' ${tagfile})
-output_prefix_list=$(jq --raw-output '.output_prefix_list // empty' ${tagfile})
-do_debug=$(jq --raw-output '.debug // empty' ${tagfile})
-tracking_algo_selection=$(jq --raw-output '.tracking_algorithm // empty' ${tagfile})
-do_continuous=$(jq --raw-output '.continuous // empty' ${tagfile})
-endpointmaskname=$(jq --raw-output '.endpointmask // empty' ${tagfile})
-do_only_nonzero_denom=$(jq --raw-output '.only_nonzero_denom // empty' ${tagfile})
+nemo_version=$(jq --raw-output '.nemo_version | select(. != null)' ${tagfile})
+nemo_version_date=$(jq --raw-output '.nemo_version_date | select(. != null)' ${tagfile})
+s3nemoroot=$(jq --raw-output '.s3nemoroot | select(. != null)' ${tagfile})
+s3configbucket=$(jq --raw-output '.s3configbucket | select(. != null)' ${tagfile})
+origfilename_raw=$(jq --raw-output '.filename | select(. != null)' ${tagfile})
+origfilename=$(jq --raw-output '.filename | select(. != null)' ${tagfile} | tr " " "_")
+origtimestamp=$(jq --raw-output '.timestamp | select(. != null)' ${tagfile})
+origtimestamp_unix=$(jq --raw-output '.unixtime | select(. != null)' ${tagfile})
+email=$(jq --raw-output '.email | select(. != null)' ${tagfile})
+output_allref=$(jq --raw-output '.output_allref | select(. != null)' ${tagfile} | tr "[A-Z]" "[a-z]")
+do_smoothing=$(jq --raw-output '.smoothing | select(. != null)' ${tagfile})
+do_siftweights=$(jq --raw-output '.siftweights | select(. != null)' ${tagfile})
+do_cumulative=$(jq --raw-output '.cumulative | select(. != null)' ${tagfile})
+smoothfwhm=$(jq --raw-output '.smoothfwhm | select(. != null)' ${tagfile})
+smoothmode=$(jq --raw-output '.smoothmode | select(. != null)' ${tagfile})
+s3direct_outputlocation=$(jq --raw-output '.s3direct_outputlocation | select(. != null)' ${tagfile})
+status_suffix=$(jq --raw-output '.status_suffix | select(. != null)' ${tagfile})
+output_prefix_list=$(jq --raw-output '.output_prefix_list | select(. != null)' ${tagfile})
+do_debug=$(jq --raw-output '.debug | select(. != null)' ${tagfile})
+tracking_algo_selection=$(jq --raw-output '.tracking_algorithm | select(. != null)' ${tagfile})
+do_continuous=$(jq --raw-output '.continuous | select(. != null)' ${tagfile})
+endpointmaskname=$(jq --raw-output '.endpointmask | select(. != null)' ${tagfile})
+do_only_nonzero_denom=$(jq --raw-output '.only_nonzero_denom | select(. != null)' ${tagfile})
 
 smoothfwhm=$(echo $smoothfwhm 6 | awk '{print $1}')
 inputbucket=$(echo $s3path | awk -F/ '{print $1}')
@@ -320,14 +320,14 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     if [[ $o == addparc* ]]; then
         out_type="parc"
         #_name,_allref,_pairwise,_filekey?
-        out_name=$(jq --raw-output '.'${o}'_name // empty' ${tagfile})
-        out_filekey=$(jq --raw-output '.'${o}'_filekey // empty' ${tagfile})
+        out_name=$(jq --raw-output '.'${o}'_name | select(. != null)' ${tagfile})
+        out_filekey=$(jq --raw-output '.'${o}'_filekey | select(. != null)' ${tagfile})
         
-        out_pairwise=$(jq --raw-output '.'${o}'_pairwise // empty' ${tagfile})
-        out_allref=$(jq --raw-output '.'${o}'_allref // empty' ${tagfile})
-        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag // empty' ${tagfile})
-        out_dilation=$(jq --raw-output '.'${o}'_dilation // empty' ${tagfile})
-        out_numroi=$(jq --raw-output '.'${o}'_numroi // empty' ${tagfile})
+        out_pairwise=$(jq --raw-output '.'${o}'_pairwise | select(. != null)' ${tagfile})
+        out_allref=$(jq --raw-output '.'${o}'_allref | select(. != null)' ${tagfile})
+        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag | select(. != null)' ${tagfile})
+        out_dilation=$(jq --raw-output '.'${o}'_dilation | select(. != null)' ${tagfile})
+        out_numroi=$(jq --raw-output '.'${o}'_numroi | select(. != null)' ${tagfile})
         
         out_filename=
         
@@ -486,12 +486,12 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
     elif  [[ $o == addres* ]]; then
         out_type="res"
         #_res,_allref,_pairwise
-        out_res=$(jq --raw-output '.'${o}'_res // empty' ${tagfile} )
+        out_res=$(jq --raw-output '.'${o}'_res | select(. != null)' ${tagfile} )
         out_name="res${out_res}mm"
-        out_pairwise=$(jq --raw-output '.'${o}'_pairwise // empty' ${tagfile})
-        out_allref=$(jq --raw-output '.'${o}'_allref // empty' ${tagfile})
-        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag // empty' ${tagfile})
-        out_numroi=$(jq --raw-output '.'${o}'_numroi // empty' ${tagfile})
+        out_pairwise=$(jq --raw-output '.'${o}'_pairwise | select(. != null)' ${tagfile})
+        out_allref=$(jq --raw-output '.'${o}'_allref | select(. != null)' ${tagfile})
+        out_keepdiag=$(jq --raw-output '.'${o}'_keepdiag | select(. != null)' ${tagfile})
+        out_numroi=$(jq --raw-output '.'${o}'_numroi | select(. != null)' ${tagfile})
         
         resarg_tmp="--resolution ${out_res}=${out_name}"
         if [ ${out_pairwise} = "false" ]; then
