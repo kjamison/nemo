@@ -6,6 +6,9 @@ import sys
 import argparse
 import nibabel as nib
 
+#workaround for deprecation warning
+sys.modules['scipy.sparse.csr'] = sparse
+
 #example:
 #python chacoconn_to_nemosc.py --chacoconn mylesion_nemo_output_chacoconn_fs86subj_allref.pkl \
 # --denom mylesion_nemo_output_chacoconn_fs86subj_allref_denom.pkl \
@@ -40,7 +43,16 @@ def data_to_cell_array(data, as2d=False):
         data_new[:]=[C for C in data]
     return data_new
 
-def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,outfile_allref=None,roivolfile=None,do_triu=False,do_nodiag=False,do_onlydenom=False,maxdensesize=1000):
+def chacoconn_to_nemosc(chacofile,denomfile,
+                        outfile,
+                        outfile_stdev=None,
+                        outfile_allref=None,
+                        roivolfile=None,
+                        do_triu=False,
+                        do_nodiag=False,
+                        do_onlydenom=False,
+                        refsubj_weights=None,
+                        maxdensesize=1000):
     C=pickle.load(open(chacofile,"rb"))
     D=pickle.load(open(denomfile,"rb"))
     roivolmat=None
@@ -127,24 +139,42 @@ def chacoconn_to_nemosc(chacofile,denomfile,outfile,outfile_stdev=None,outfile_a
             raise ValueError("Allref nemoSC output file must be .mat: %s" % (outfile_allref))
         SC_allref=None
     
+    if refsubj_weights is None:
+        refsubj_weights=np.ones(len(C),dtype=C[0].dtype)
+    else:
+        refsubj_weights=np.array(refsubj_weights,dtype=C[0].dtype) #in case it was a list, dataframe, etc
+        print("Using reference subject weights. %d/%d nonzero, sum=%g" % (np.sum(refsubj_weights>0),len(refsubj_weights),refsubj_weights.sum()))
+
     if output_is_sparse:
         SCmean=0
         SCsqmean=0
-        for c in SC:
-            SCmean+=c
-            SCsqmean+=c.multiply(c)
-        SCmean/=len(SC)
-        SCsqmean/=len(SC)
+        for c, w in zip(SC, refsubj_weights):
+            if w==0:
+                continue
+            SCmean+=c*w
+            SCsqmean+=c.multiply(c)*w
+        SCmean/=refsubj_weights.sum()
+        SCsqmean/=refsubj_weights.sum()
         SCstd=SCsqmean - SCmean.multiply(SCmean)
-        SCstd[SCstd<0]=0
+        SCstd.data[SCstd.data<0]=0
         SCstd.eliminate_zeros()
         SCstd=np.sqrt(SCstd)
     else:
         #compute the mean estimated SC (RxR) across all ref subjects
-        SCmean=np.mean(SC,axis=2)
-        SCstd=np.zeros(SCmean.shape)
-        if outfile_stdev is not None:
-            SCstd=np.std(SC,axis=2)
+        SCmean=0
+        SCsqmean=0
+        for i in range(SC.shape[2]):
+            c=SC[:,:,i]
+            w=refsubj_weights[i]
+            if w==0:
+                continue
+            SCmean+=c*w
+            SCsqmean+=c*c*w
+        SCmean/=refsubj_weights.sum()
+        SCsqmean/=refsubj_weights.sum()
+        SCstd=SCsqmean - SCmean*SCmean
+        SCstd[SCstd<0]=0
+        SCstd=np.sqrt(SCstd)
     
     if roivolmat is not None and len(roivolmat.shape)==2:
         SCmean=SCmean/roivolmat
