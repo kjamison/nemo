@@ -28,7 +28,7 @@ def argument_parse_nemosc(argv):
     parser.add_argument("--outputallref",action="store",dest="outfile_allref")
     parser.add_argument("--triu",action="store_true",dest="triu")
     parser.add_argument("--nodiag",action="store_true",dest="nodiag")
-    parser.add_argument("--onlydenom",action="store_true",dest="onlydenom")
+    parser.add_argument("--onlydenom",action="store_true",dest="onlydenom",help="Just compute the average undamaged SC across reference subjects from the denom file")
     parser.add_argument("--maxdensesize",action="store",default=1000,dest="maxdensesize",type=int)
     
     args=parser.parse_args(argv)
