@@ -286,6 +286,10 @@ function showUploader(run_internal_script) {
     '<div class="algo_description">(<a href="https://github.com/kjamison/nemo?tab=readme-ov-file#select-tractography-algorithm" target="_blank">[Help]</a>, see <a href="https://mrtrix.readthedocs.io/en/latest/reference/commands/tckgen.html"  target="_blank" rel="noopener noreferrer">MRtrix3 tckgen documentation</a>)</div>',
     '<br/><br/>'].join("\n");
     
+    //extra_html+=['<div style="text-align:center"><button id="upload" onclick="downloadConfigJson()" class="bigbutton">Download JSON</button></div>'];
+    extra_html+=['<button id="getjson" onclick="downloadConfigJson()">Save config</button>'];
+    extra_html+=['&nbsp;<button id="loadjson" onclick="loadConfigJson()">Load config</button>'];
+    
     var htmlTemplate = [
         '<div id="version" class="versiondiv"></div>',
         '<label for="email">E-mail address:</label>',
@@ -471,7 +475,7 @@ function getParcDilationHtml(id, override_default_dilation){
     return htmlTemplate.join("\n");
 }
 
-function addOutput(parc_or_res, select_id, init1mm){
+function addOutput(parc_or_res, select_id, init1mm, override_value, override_text){
     neutralMessage(""); //clear previous messages
     var allrefchecked=""
     var pairwisechecked=""
@@ -479,11 +483,20 @@ function addOutput(parc_or_res, select_id, init1mm){
     var pairwise_disabled=""
     var pairwise_override_input=""
 
+    if(override_value === undefined)
+        override_value=null;
+    if(override_text === undefined)
+        override_text=null;
+
     parc_or_res_orig=parc_or_res;
     
     if(init1mm){
         var selvalue="1";
         var seltext="1 mm";
+    } else {
+        if(override_value){
+            var selvalue=override_value;
+            var seltext=override_text;
     } else {
         var myselect = document.getElementById(select_id);
         var selvalue=myselect.options[myselect.options.selectedIndex].value;
@@ -491,7 +504,7 @@ function addOutput(parc_or_res, select_id, init1mm){
             return;
         }
         var seltext=myselect.options[myselect.options.selectedIndex].text;
-        
+        }
         if(atlasinfo[selvalue]){
             //in the case where we passed cifti parc from the "res" dropdown, proceed as parc
             parc_or_res='parc';
@@ -660,18 +673,181 @@ function getNextAvailableId(idprefix,startindex){
     return idprefix+i;
 }
 
-function submitMask() {
-    if(uploadTimer != null){
-        clearInterval(uploadTimer); 
-        uploadTimer=null;
+function getConfigListValue(config_taglist, key) {
+  const item = config_taglist.find(x => x.Key === key);
+  return item ? item.Value : null;
+}
+
+function setConfigListValue(config_taglist, key, value) {
+  const item = config_taglist.find(x => x.Key === key);
+
+  if (item) {
+    item.Value = value;
+  } else {
+    config_taglist.push({ Key: key, Value: value });
+  }
+
+  return config_taglist;
+}
+
+function populateFormFromConfig(config_taglist) {
+    if (!config_taglist) {
+        errorMessage("Invalid configuration format.");
+        return;
     }
+
+    //need to have it in key:value format for easier access
+    if(isKeyValueArray(config_taglist)) {
+        var config_taglist_keyval = {};
+        for (var i = 0; i < config_taglist.length; i++) {
+            var key = config_taglist[i].Key;
+            var value = config_taglist[i].Value;
+            config_taglist_keyval[key] = value;
+        }
+        config_taglist = config_taglist_keyval;
+    }
+
+    // defined correspondence between config keys and form elements
+    config_field_dict={}
+    config_field_dict['smoothing'] = {'tagname': 'smoothing', 'type': 'checkbox', 'element_name': 'smoothing'};
+    config_field_dict['siftweights'] = {'tagname': 'siftweights', 'type': 'checkbox', 'element_name': 'siftweights'};
+    config_field_dict['cumulative'] = {'tagname': 'cumulative', 'type': 'checkbox', 'element_name': 'cumulative'};
+    config_field_dict['continuous'] = {'tagname': 'continuous', 'type': 'checkbox', 'element_name': 'continuous'};
+    config_field_dict['only_nonzero_denom'] = {'tagname': 'only_nonzero_denom', 'type': 'checkbox', 'element_name': 'nonzero_denom_checkbox'};
+
+    config_field_dict['debug'] = {'tagname': 'debug', 'type': 'checkbox', 'element_name': 'debug'};
+    config_field_dict['ec2dev'] = {'tagname': 'ec2dev', 'type': 'checkbox', 'element_name': 'ec2dev'};
+    config_field_dict['endpointmask'] = {'tagname': 'endpointmask', 'type': 'checkbox_ifdefined', 'element_name': 'endpointmask_checkbox'};
+
+    config_field_dict['email'] = {'tagname': 'email', 'type': 'text', 'element_name': 'email'};
+    config_field_dict['outputlocation'] = {'tagname': 'outputlocation', 'type': 'text', 'element_name': 'outputlocation'};
+    config_field_dict['tracking_algorithm'] = {'tagname': 'tracking_algorithm', 'type': 'select', 'element_name': 'tracking_algorithm_select'};
+
+    resparc_field_dict={}
+    resparc_field_dict['pairwise'] = {'tagname': 'pairwise', 'type': 'checkbox', 'element_name': 'pairwise'};
+    resparc_field_dict['allref'] = {'tagname': 'allref', 'type': 'checkbox', 'element_name': 'output_allref'};
+    resparc_field_dict['keepdiag'] = {'tagname': 'keepdiag', 'type': 'checkbox', 'element_name': 'keepdiag'};
+    resparc_field_dict['dilation'] = {'tagname': 'dilation', 'type': 'select', 'element_name': 'dilselect'};
+    resparc_field_dict['name'] = {'tagname': 'name', 'type': 'select', 'element_name': 'customname'};
+
+    var config_field_list=Object.keys(config_field_dict);
+    var resparc_field_list=Object.keys(resparc_field_dict);
+
+    for (var i=0; i<config_field_list.length; i++){
+        var this_field=config_field_list[i];
+        var fieldinfo=config_field_dict[this_field];
+        var this_node=document.getElementById(fieldinfo['element_name']);
+        var this_value=config_taglist[this_field]
+        if (this_node) {
+            if (fieldinfo['type'] == 'checkbox_ifdefined') {
+                this_node.checked = this_value !== undefined;
+            } else if(this_value === undefined){
+                continue;
+            }
+            
+            if(fieldinfo['type'] == 'checkbox') { 
+                this_node.checked = this_value;
+            } else {
+                this_node.value = this_value;
+            }
+        }
+    }
+
+    //clear existing outputs before populating from config
+    var resdivchildren = document.getElementById("resdiv").childNodes;
+    var parcdivchildren = document.getElementById("parcdiv").childNodes;
+    var resparc=Array.prototype.slice.call(resdivchildren).concat(Array.prototype.slice.call(parcdivchildren));
+    for(var i=0; i<resparc.length; i++){
+        removeOutput(resparc[i].id);
+    }
+
+    var outputs_prefixlist = config_taglist["output_prefix_list"];
+    if(outputs_prefixlist){
+        outputs_prefixlist=outputs_prefixlist.split(",");
+    } else {
+        outputs_prefixlist=[];
+    }
+
+    for(var i=0; i<outputs_prefixlist.length; i++){
+        var this_prefix=outputs_prefixlist[i];
+        var this_id=this_prefix;
+
+        if (this_id.startsWith("addres")) {
+            resmm=config_taglist[this_id+"_res"];
+            addOutput("res",null,false,resmm,resmm+" mm");
+        } else if(this_id.startsWith("addparc")) {
+            parcname=config_taglist[this_id+"_name"];
+            parcval=parcname;
+            if(config_taglist[this_id+"_filekey"])
+                parcname="custom";
+            addOutput("parc",null,false,parcname,parcval);
+        } else {
+            console.log("Unknown output prefix: "+this_id);
+            continue;
+        }
+
+        for (var j=0; j<resparc_field_list.length; j++){
+            var this_field=resparc_field_list[j];
+            var fieldinfo=resparc_field_dict[this_field];
+            var this_node=document.getElementById(this_id+"_"+fieldinfo['element_name']);
+            var this_value=config_taglist[this_id+"_"+fieldinfo['tagname']];
+            if (this_node) {
+                if (fieldinfo['type'] == 'checkbox_ifdefined') {
+                    this_node.checked = this_value !== undefined;
+                } else if(this_value === undefined){
+                    continue;
+                }
+
+                if(fieldinfo['type'] == 'checkbox'){
+                    this_node.checked = this_value;
+                } else {
+                    this_node.value = this_value;
+                }
+            }
+        }
+    }
+}
+
+function loadConfigJson() {
+    //prompt user to load a JSON file, then parse it and populate the form fields accordingly
+    var jsoninput_element = document.createElement('input');
+    jsoninput_element.type = 'file';
+    jsoninput_element.style.display = 'none';
+    jsoninput_element.accept = '.json';
+
+    jsoninput_element.onchange = e => {
+        var file = e.target.files[0];
+        var reader = new FileReader();
+        
+        reader.readAsText(file, 'UTF-8');
+        reader.onload = readerEvent => {
+            var content = readerEvent.target.result;
+            try {
+                var config = JSON.parse(content);
+                populateFormFromConfig(config);
+            } catch (error) {
+                errorMessage("Error parsing JSON: " + error.message);
+            }
+        }
+    }
+
+    document.body.appendChild(jsoninput_element);
+    jsoninput_element.click();
+    document.body.removeChild(jsoninput_element);
+}
+
+function getConfigJson(requirement_dict) {
+    if (requirement_dict === undefined) requirement_dict = {};
+    //require = true by default, unless explicitly set to false in requirement_dict
+    var config_requires_email = requirement_dict["require_email"] !== undefined ? requirement_dict["require_email"] : true;
+    var config_requires_password = requirement_dict["require_password"] !== undefined ? requirement_dict["require_password"] : true;
+    var config_requires_outputlocation = requirement_dict["require_outputlocation"] !== undefined ? requirement_dict["require_outputlocation"] : true;
+    var config_requires_lesion_file = requirement_dict["require_lesion_file"] !== undefined ? requirement_dict["require_lesion_file"] : true;
 
     var files = document.getElementById("fileupload").files;
     var email = document.getElementById("email").value;
     var smoothing = document.getElementById("smoothing").checked;
     var siftweights = document.getElementById("siftweights").checked;
-    var statusdiv = document.getElementById("uploadstatus");
-    var statusimgdiv = document.getElementById("uploadstatusimage");
     var outputlocation = document.getElementById("outputlocation");
     var cocopassword = document.getElementById("coco_password");
     var debug_input = document.getElementById("debug");
@@ -698,11 +874,6 @@ function submitMask() {
     var endpointmask_name = null
     if(document.getElementById("endpointmask_checkbox") && document.getElementById("endpointmask_checkbox").checked)
             endpointmask_name=default_endpointmask_name
-    
-    
-    neutralMessage("...",true);
-    document.getElementById("upload").disabled=true;
-    statusimgdiv.innerHTML="";
     
     var uploadFolderKey = encodeURIComponent(uploadFolder) + "/";
     var newTimestamp=timestamp() 
@@ -766,26 +937,6 @@ function submitMask() {
 
             var newKey=uploadFolderKey + newTimestamp + "/" + this_name + this_fileext;
             this_newkey=newKey;
-            
-            var upload = new AWS.S3.ManagedUpload({
-            params: {
-                Bucket: uploadBucketName,
-                Key: newKey,
-                Body: this_file,
-                ACL: "bucket-owner-full-control" 
-            }});
-
-            var promise = upload.promise();
-
-            promise.then(
-            function(data) {
-                console.log("Successfully uploaded atlas file: "+this_filename)
-            },
-            function(err) {
-                errorMessage("There was an error uploading your atlas file: "+err.message)
-                console.log(err);
-                return;
-            });
         }
         //remove the "add"
         //var this_prefix=this_id.substr(3);
@@ -818,49 +969,51 @@ function submitMask() {
         outputs_taglist.push({Key: "output_prefix_list", Value: outputs_prefixlist.join(",")});
     //console.log(outputs_taglist);
     
-    if (!files.length) {
+    if (config_requires_lesion_file && !files.length) {
         errorMessage("Please choose a lesion file to upload first!");
         return;
     }
-    if (!email.length) {
+    if (config_requires_email && !email.length) {
         errorMessage("Please enter an email!")
         return;
     }
-    if (cocopassword && !cocopassword.value.length) {
+    if (config_requires_password && cocopassword && !cocopassword.value.length) {
         errorMessage("Please enter a password!")
         return;
     }
-    if (outputlocation && !outputlocation.value.length) {
+    if (config_requires_outputlocation && outputlocation && !outputlocation.value.length) {
         errorMessage("Please enter an S3 output location!")
         return;
     }
     
-    var file = files[0];
-    var fileName = file.name;
+    /////////////////////////////
+    var newKey="";
+    var fileName="";
+    if(files.length > 0){
+        var file = files[0];
+        fileName = file.name;
 
-    var lowername=fileName.toLowerCase();
+        var lowername=fileName.toLowerCase();
 
-    var fileext=""
-    if (lowername.endsWith(".nii.gz")) {
-        fileext=".nii.gz"
-    } else if (lowername.endsWith(".nii")) {
-        fileext=".nii"
-    } else if (lowername.endsWith(".zip")) {
-        fileext=".zip"
-    } else if (lowername.endsWith(".tar.gz")) {
-        fileext=".tar.gz"
-    } else if (lowername.endsWith(".tar")) {
-        fileext=".tar"
-    } else {
-        errorMessage("Unknown file extension for "+fileName+". Must be .nii.gz, .nii, .zip, .tar, .tar.gz")
-        return;
+        var fileext=""
+        if (lowername.endsWith(".nii.gz")) {
+            fileext=".nii.gz"
+        } else if (lowername.endsWith(".nii")) {
+            fileext=".nii"
+        } else if (lowername.endsWith(".zip")) {
+            fileext=".zip"
+        } else if (lowername.endsWith(".tar.gz")) {
+            fileext=".tar.gz"
+        } else if (lowername.endsWith(".tar")) {
+            fileext=".tar"
+        } else {
+            errorMessage("Unknown file extension for "+fileName+". Must be .nii.gz, .nii, .zip, .tar, .tar.gz")
+            return;
+        }
+        
+        var newFileName=newTimestamp + "/" + uuidv4() + fileext;
+        newKey=uploadFolderKey + newFileName;
     }
-    
-    var newFileName=newTimestamp + "/" + uuidv4() + fileext;
-    var newKey=uploadFolderKey + newFileName;
-
-    // Use S3 ManagedUpload class as it supports multipart uploads
-
     // Object can only have 10 tags! Only take 
     taglist=[{Key: 'filename', Value: fileName}, {Key: 'email', Value: email},
         {Key: 'timestamp', Value: newTimestamp}, {Key: 'unixtime', Value: Date.now()}, 
@@ -889,10 +1042,90 @@ function submitMask() {
     // so that the cocopassword is NOT in the config FILE, only in the S3 object tag
     if (cocopassword) taglist.push({Key: 'coco_password', Value: "enc:"+window.btoa(cocopassword.value)});
     if (outputlocation) taglist.push({Key: 'outputlocation', Value: outputlocation.value});
-    //////////////////////////////////////////////////////////
+
+    return {"taglist": taglist, 
+        "config_taglist":config_taglist,
+        "newKey": newKey};
+}
+
+function submitMask() {
+    if(uploadTimer != null){
+        clearInterval(uploadTimer); 
+        uploadTimer=null;
+    }
+    
+    var files = document.getElementById("fileupload").files;
+    var statusdiv = document.getElementById("uploadstatus");
+    var statusimgdiv = document.getElementById("uploadstatusimage");
+
+    neutralMessage("...",true);
+    document.getElementById("upload").disabled=true;
+    statusimgdiv.innerHTML="";
+
+    var config_json_dict = getConfigJson();
+    if(!config_json_dict)
+        return;
+    var taglist = config_json_dict["taglist"];
+    var config_taglist = config_json_dict["config_taglist"];
+
+    //also need to upload the atlas files if they were there
+
+    var email = getConfigListValue(taglist,"email");
+    var has_cocopassword = getConfigListValue(taglist,"coco_password") !== null;
+    
+    //update timestamps for new submit
+    var newTimestamp=getConfigListValue(taglist,"timestamp");
+    var uploadFolderKey = encodeURIComponent(uploadFolder) + "/";
+
+    var outputs_prefixlist = getConfigListValue(config_taglist,"output_prefix_list");
+    if(outputs_prefixlist){
+        outputs_prefixlist=outputs_prefixlist.split(",");
+    } else {
+        outputs_prefixlist=[];
+    }
+    /////////////////////////
+    for( var i=0; i<outputs_prefixlist.length; i++ ){
+        var this_id=outputs_prefixlist[i];
+        var this_prefix=this_id;
+        var this_filekey=getConfigListValue(config_taglist,this_id+"_filekey");
+        var this_filenode=document.getElementById(this_id+"_fileupload");
+        if (this_filenode != null){
+            var this_file=this_filenode.files[0];
+            var this_filename=this_file.name;
+            
+            var newKey=this_filekey;
+
+            var upload = new AWS.S3.ManagedUpload({
+            params: {
+                Bucket: uploadBucketName,
+                Key: newKey,
+                Body: this_file,
+                ACL: "bucket-owner-full-control" 
+            }});
+
+            var promise = upload.promise();
+
+            promise.then(
+            function(data) {
+                console.log("Successfully uploaded atlas file: "+this_filename)
+            },
+            function(err) {
+                errorMessage("There was an error uploading your atlas file: "+err.message)
+                console.log(err);
+                return;
+            });
+        }
+    }
+    /////////////////////////
+    
+
+    var newKey = config_json_dict["newKey"];
+
+    // Use S3 ManagedUpload class as it supports multipart uploads
+
     var jsonse=JSON.stringify(config_taglist);
     var config_blob = new Blob([jsonse], {type: "application/json"});
-    
+
     var upload = new AWS.S3.ManagedUpload({
     params: {
         Bucket: uploadBucketName,
@@ -917,7 +1150,8 @@ function submitMask() {
     
     //return;
     //////////////////////////////////////////////////////////
-    
+    var file = files[0];
+
     //original: ACL: 'public-read'
     var upload = new AWS.S3.ManagedUpload({
     params: {
@@ -934,7 +1168,7 @@ function submitMask() {
 
     promise.then(
     function(data) {
-        if(cocopassword){
+        if(has_cocopassword){
             neutralMessage("Validating password...", true);
             timer_interval=passwordTimerInterval;
         } else {
@@ -953,4 +1187,53 @@ function submitMask() {
         console.log(err);
         return;
     });
+}
+
+function isKeyValueArray(x) {
+  return (
+    Array.isArray(x) &&
+    x.every(function(item) {
+      return (
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item) &&
+        Object.prototype.hasOwnProperty.call(item, "Key") &&
+        Object.prototype.hasOwnProperty.call(item, "Value")
+      );
+    })
+  );
+}
+
+function downloadConfigJson(){
+    var json_filename = "nemo_input_config.json";
+
+    // Get the config JSON config without requiring email or password
+    var config_json_dict = getConfigJson({'require_email':false,'require_password':false,'require_lesion_file':false});
+    if(!config_json_dict)
+        return;
+
+    var config_taglist = config_json_dict["config_taglist"];
+
+    if(isKeyValueArray(config_taglist)) {
+        var config_taglist_keyval = {};
+        for (var i = 0; i < config_taglist.length; i++) {
+            var key = config_taglist[i].Key;
+            var value = config_taglist[i].Value;
+            config_taglist_keyval[key] = value;
+        }
+        config_taglist = config_taglist_keyval;
+    }
+    var jsonse = JSON.stringify(config_taglist, null, 2);
+    var config_blob = new Blob([jsonse], { type: "application/json" });
+
+    var url = URL.createObjectURL(config_blob);
+
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = json_filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
 }
