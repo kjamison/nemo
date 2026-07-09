@@ -61,6 +61,27 @@ def get_node_coords(nodefile):
         
     return nodexyz
 
+def has_drawable_edges(adj, threshold=None):
+    adj = np.asarray(adj)
+
+    # Use upper triangle for symmetric connectomes, excluding diagonal
+    vals = adj[np.triu_indices_from(adj, k=1)]
+    vals = vals[np.isfinite(vals)]
+    vals = vals[vals != 0]
+
+    if vals.size == 0:
+        return False
+
+    if threshold is None:
+        return True
+
+    if isinstance(threshold, str) and threshold.endswith("%"):
+        pct = float(threshold[:-1])
+        cutoff = np.percentile(np.abs(vals), pct)
+        return np.any(np.abs(vals) > cutoff)
+
+    return np.any(np.abs(vals) > float(threshold))
+
 def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=None ,maxsize=None, nodeview=None, maxedges=1000, maxedgeperc=90,
         bginputlist=None, bgparcellation=None, bgcolormap=None, bgmaxscale=None, bgmaxpercentile=None):
     
@@ -96,11 +117,13 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
         edge_threshold=max(edge_threshold,maxedgeperc)
     edge_threshold_str="%.2f%%" % (edge_threshold)
     
+    do_colorbar = (edge_range[1]>edge_range[0]) and has_drawable_edges(avgdata, edge_threshold_str)
+
     if bginputlist is None:
         #disp_fig=None
         #disp_outfile=outputfile
         plotting.plot_connectome(avgdata,nodexyz, edge_threshold=edge_threshold_str,edge_cmap=colormap,display_mode=nodeview,
-            node_size=nodesizes,edge_vmin=edge_range[0],edge_vmax=edge_range[1],colorbar=True,title=title,output_file=outputfile)
+            node_size=nodesizes,edge_vmin=edge_range[0],edge_vmax=edge_range[1],colorbar=do_colorbar,title=title,output_file=outputfile)
     else:
         #in background case, load and plot the glassbrain background, then use the nilearn internal 
         #add_graph function to plot the lines
@@ -133,7 +156,7 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
                           edge_cmap=colormap,
                           edge_vmin=edge_range[0], edge_vmax=edge_range[1],
                           edge_threshold=edge_threshold_str,
-                          colorbar=True)
+                          colorbar=do_colorbar)
         display.savefig(outputfile)
         display.close()
                           
