@@ -7,57 +7,98 @@ starttime=$(date +%s)
 
 set -x
 
-if [ -e $HOME/fsl ]; then
-        export FSLDIR=$HOME/fsl
-        export PATH=$FSLDIR/bin:$PATH
-fi
-
-export PATH=/home/ubuntu/anaconda3/bin:$PATH
-export PATH=/home/ubuntu/bin:$PATH
-
 env
 
+if [ -n "${NEMO_RUNNING_ON_AWS}" ]; then
+    IMDSTOKEN=$(curl -sS --connect-timeout 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null || true)
 
-IMDSTOKEN=$(curl -sS --connect-timeout 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-
-isAWS=1
-if [ "x${IMDSTOKEN}" = "x" ]; then
+    isAWS=1
+    if [ "x${IMDSTOKEN}" = "x" ]; then
+        isAWS=0
+    fi
+else
     isAWS=0
 fi
 
-###################################
-WORKROOT=${HOME}
-NEMODIR=${HOME}/nemo2
-NEMODATA=${HOME}/nemodata
-
-NEMOSCRIPTDIR=${NEMODIR}
-
-ATLASDIR=${HOME}/nemo_atlases
-atlaslistfile=${ATLASDIR}/atlas_list.json
-
-mkdir -p ${NEMODIR}
-mkdir -p ${NEMODATA}
 
 ###################################
 
+if [ ${isAWS} = 1 ]; then
+    if [ -e $HOME/fsl ]; then
+            export FSLDIR=$HOME/fsl
+            export PATH=$FSLDIR/bin:$PATH
+    fi
+
+    export PATH=/home/ubuntu/anaconda3/bin:$PATH
+    export PATH=/home/ubuntu/bin:$PATH
+
+    WORKROOT=${HOME}
+    NEMODIR=${HOME}/nemo2
+    NEMODATA=${HOME}/nemodata
+
+    NEMOSCRIPTDIR=${NEMODIR}
+
+    ATLASDIR=${HOME}/nemo_atlases
+    atlaslistfile=${ATLASDIR}/atlas_list.json
+
+    mkdir -p ${NEMODIR}
+    mkdir -p ${NEMODATA}
+    mkdir -p ${WORKROOT}
+
+else
+
+    WORKROOT=$(echo ${NEMO_WORK_ROOT} $(pwd) | awk '{print $1}')
+    NEMODIR=$(echo ${NEMO_SCRIPT_DIR} /nemo2 | awk '{print $1}')
+    NEMODATA=$(echo ${NEMO_DATA_DIR} /nemodata | awk '{print $1}')
+
+    NEMOJSON=$(echo ${NEMO_INPUT_CONFIG} /nemo_tags.json | awk '{print $1}')
+    NEMOINPUTFILE=${NEMO_INPUT_FILE}
+
+    ATLASDIR=$(echo ${NEMO_ATLAS_DIR} /nemo_atlases | awk '{print $1}')
+    atlaslistfile=${ATLASDIR}/atlas_list.json
+
+
+    NEMOSCRIPTDIR=${NEMODIR}
+
+    mkdir -p ${NEMODIR}
+    mkdir -p ${NEMODATA}
+    mkdir -p ${WORKROOT}
+fi
+###################################
 
 tagfile=${WORKROOT}/nemo_tags.json
 
-instanceid=$(curl -sf -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-region=$(curl --silent --fail -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
-aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > ${tagfile}
+if [ ${isAWS} = 1 ]; then
+    instanceid=$(curl -sf -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+    region=$(curl --silent --fail -H "X-aws-ec2-metadata-token: $IMDSTOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document/ | grep region | cut -d\" -f4)
+    aws ec2 describe-tags --region $region --filter "Name=resource-id,Values=$instanceid" | jq --raw-output ".Tags[]" > ${tagfile}
 
-#Download the config file and append it to the ec2 instance tags
-s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' ${tagfile})
-aws s3 cp s3://${s3path}_config.json $WORKROOT/tmp_config.json --no-progress
-jq --raw-output '.[]' $WORKROOT/tmp_config.json >> ${tagfile}
-rm -f $WORKROOT/tmp_config.json
+    #Download the config file and append it to the ec2 instance tags
+    s3path=$(jq --raw-output 'select(.Key=="s3path") | .Value' ${tagfile})
+    aws s3 cp s3://${s3path}_config.json $WORKROOT/tmp_config.json --no-progress
+    jq --raw-output '.[]' $WORKROOT/tmp_config.json >> ${tagfile}
+    rm -f $WORKROOT/tmp_config.json
 
-cp -f ${tagfile} ${tagfile}.orig
+    cp -f ${tagfile} ${tagfile}.orig
 
-#create a config json file with all the tags for easier parsing later (note: there might be duplicates between instance tags and config, so take head -n1)
-echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > $WORKROOT/tmp_config.json
-mv $WORKROOT/tmp_config.json ${tagfile}
+    #create a config json file with all the tags for easier parsing later (note: there might be duplicates between instance tags and config, so take head -n1)
+    echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > $WORKROOT/tmp_config.json
+    mv $WORKROOT/tmp_config.json ${tagfile}
+else
+    #s3filename=$(basename $s3path) - this is used to create workdir/nemo_input_<....>/
+    cp -f ${NEMOJSON} ${tagfile}.orig
+    cp -f ${NEMOJSON} ${tagfile}
+fi
+
+#if config file was not already converted from the array (eg: it was NOT pulled from AWS),
+#convert it from [{"Key":"key1","Value":"value1"},{"Key":"key2","Value":"value2"}] to 
+#{"key1":"value1","key2":"value2"} format. 
+#If already key:value, leave it alone
+is_config_json_array=$(jq --raw-output 'if type == "array" and all(.[]; type == "object" and has("Key") and has("Value")) then "yes" else "no" end' ${tagfile})
+if [ "${is_config_json_array}" = "yes" ]; then
+	echo "{" $(jq '.[] | .Key' ${tagfile} | while read k; do echo "$k": $(jq '.[] | select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.'  > $WORKROOT/tmp_config.json
+    mv $WORKROOT/tmp_config.json ${tagfile}
+fi
 
 nemo_version=$(jq --raw-output '.nemo_version | select(. != null)' ${tagfile})
 nemo_version_date=$(jq --raw-output '.nemo_version_date | select(. != null)' ${tagfile})
@@ -92,6 +133,22 @@ unzipdir=
 
 maximum_runtime_minutes_per_mask=720 #12 hours
 
+#################################
+if [ ${isAWS} = 0 ]; then
+    #just assume it is already in filename?
+    if [ -n "${NEMOINPUTFILE}" ]; then
+        s3path="${NEMOINPUTFILE}"
+        origfilename_raw=$(basename "${s3path}")
+        origfilename=$(basename "${s3path}" | tr " " "_")
+        #update the config.json file if we specified a specific input file
+        jq '.filename="'"${origfilename_raw}"'" | .s3path="'"${s3path}"'"' ${tagfile} > $WORKROOT/tmp_config.json
+        mv $WORKROOT/tmp_config.json ${tagfile}
+    else
+        s3path="${origfilename_raw}"
+        origfilename=$(basename ${origfilename})
+    fi
+fi
+#################################
 #config_bucket="kuceyeski-wcm-web-upload"
 #config_bucket="kuceyeski-wcm-web"
 config_bucket=${s3configbucket}
@@ -107,8 +164,11 @@ s3filename=$(basename $s3path)
 s3filename_noext=$(echo ${s3filename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 origfilename_noext=$(echo ${origfilename} | sed -E 's/(\.nii|\.nii\.gz|\.zip|\.tar|\.tar\.gz)$//i')
 
-aws s3 cp s3://${s3path} ${WORKROOT}/${s3filename} --no-progress
-
+if [ ${isAWS} = 1 ]; then
+    aws s3 cp s3://${s3path} ${WORKROOT}/${s3filename} --no-progress
+else
+    cp -f ${s3path} ${WORKROOT}/${s3filename}
+fi
 s3lower=$(echo $s3filename | tr "[A-Z]" "[a-z]")
 
 case ${s3lower} in 
@@ -236,23 +296,24 @@ fi
 scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_average_graphbrain.py chacovol_to_nifti.py 
     nemo_save_average_matrix_figure.py chacoconn_to_nemosc.py dilate_parcellation.py check_input_dimensions.py"
 
-if [ "${do_debug}" != "true" ]; then
-    for f in $scriptfiles; do
-        aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
-    done
-else
-    #in debug mode, only copy updated scripts if they weren't already available
-    for f in $scriptfiles; do
-        if [ ! -e ${NEMODIR}/${f} ]; then
+if [ ${isAWS} = 1 ]; then
+    if [ "${do_debug}" != "true" ]; then
+        for f in $scriptfiles; do
             aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
-        fi
-    done
+        done
+    else
+        #in debug mode, only copy updated scripts if they weren't already available
+        for f in $scriptfiles; do
+            if [ ! -e ${NEMODIR}/${f} ]; then
+                aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
+            fi
+        done
+    fi
 fi
 
 ############
-
+runmode="python"
 PYCMD="python"
-
 
 ############
 outputsuffix_start="nemo_output"
@@ -262,7 +323,6 @@ outputsuffix=${outputsuffix_start}_${tracking_algo_selection}
 outputbasefile=${origfilename_noext}_${outputsuffix}
 outputbase=${outputdir}/${outputbasefile}
 logfile=${outputbase}_${origtimestamp}_log.txt
-
 
 ############
 #For copying data directly to an S3 bucket
@@ -275,7 +335,10 @@ output_config_file=${outputbase}_${origtimestamp}_config.json
 output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
 #echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
 cp -f ${tagfile} ${output_config_file}
-aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
+
+if [ ${isAWS} = 1 ]; then
+    aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
+fi
 
 echo "NeMo version ${nemo_version}_${nemo_version_date}" > ${logfile}
 date --utc >> ${logfile}
@@ -286,14 +349,17 @@ date --utc >> ${logfile}
 
 #atlaslist="aal cc200 cc400"
 
-#aws s3 sync s3://${config_bucket}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --no-progress
-aws s3 sync s3://${s3nemoroot}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --exclude "atlas_list.json" --no-progress
-if [ "${do_debug}" != "true" ]; then
-    aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${ATLASDIR}/ --no-progress
-else
-    #in debug mode, only copy atlas_list if it wasn't already available
-    if [ ! -e ${ATLASDIR}/atlas_list.json ]; then
+
+if [ ${isAWS} = 1 ]; then
+    #aws s3 sync s3://${config_bucket}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --no-progress
+    aws s3 sync s3://${s3nemoroot}/nemo_atlases ${ATLASDIR} --exclude "*.npz" --exclude "atlas_list.json" --no-progress
+    if [ "${do_debug}" != "true" ]; then
         aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${ATLASDIR}/ --no-progress
+    else
+        #in debug mode, only copy atlas_list if it wasn't already available
+        if [ ! -e ${ATLASDIR}/atlas_list.json ]; then
+            aws s3 cp s3://${s3nemoroot}/nemo_atlases/atlas_list.json ${ATLASDIR}/ --no-progress
+        fi
     fi
 fi
 
@@ -342,12 +408,33 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         if [ "x${out_filekey}" != "x" ]; then
             out_filebasename=$(basename ${out_filekey})
             out_filename=${ATLASDIR}/${out_filebasename}
-            aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename} --no-progress
-            if [ "${do_debug}" != "true" ]; then
-                #delete custom uploaded parc file after downloading
-                aws s3 rm s3://${inputbucket}/${out_filekey}
+
+            if [ ${isAWS} = 1 ]; then
+                rm -f ${out_filename} #make sure we overwrite any existing file with the same name, since this is a custom uploaded parcellation
+
+                aws s3 cp s3://${inputbucket}/${out_filekey} ${out_filename} --no-progress
+
+                if [ "${do_debug}" != "true" ]; then
+                    #delete custom uploaded parc file after downloading
+                    aws s3 rm s3://${inputbucket}/${out_filekey}
+                fi
+
+                if [ ! -e ${out_filename} ]; then
+                    echo "Custom uploaded parcellation not found on S3: " ${out_filekey}
+                    exit 1
+                fi
+            else
+                #use a temporary dir for custom atlases so we can be sure dilations and such are saved here
+                mkdir -p ${WORKDIR}/custom_atlases
+                out_filename=${WORKDIR}/custom_atlases/${out_filebasename}
+                cp -f ${out_filekey} ${out_filename}
+                if [ ! -e ${out_filename} ]; then
+                    echo "Custom parcellation not found: " ${out_filekey}
+                    exit 1
+                fi
             fi
-            
+
+
             if [ "x${out_dilation}" != "x" ] && [ "${out_dilation}" != "0" ]; then
                 #Dilate the parcellation by x mm to make sure we catch nearby streamlines
                 out_filename_dilated=$(echo ${out_filename} | sed -E 's#\.(NII|nii)(\.GZ|\.gz)?$##')_dil${out_dilation}.nii.gz
@@ -423,37 +510,38 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
                 out_filename_displayvol=${ATLASDIR}/${out_filename_displayvol}
             fi
             
-            
-            if [ ! -e ${out_filename} ]; then
-                #so we don't have to copy the giant subject-specific files unless we need them
-                #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
+            if [ ${isAWS} = 1 ]; then
                 if [ ! -e ${out_filename} ]; then
-                    echo "Atlas not found on S3: " $(basename ${out_filename})
-                    exit 1
+                    #so we don't have to copy the giant subject-specific files unless we need them
+                    #aws s3 cp s3://${config_bucket}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
+                    aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename}) ${out_filename} --no-progress
+                    if [ ! -e ${out_filename} ]; then
+                        echo "Atlas not found on S3: " $(basename ${out_filename})
+                        exit 1
+                    fi
                 fi
-            fi
-            if [ "x${out_filename_displayvol}" != x ] && [ ! -e ${out_filename_displayvol} ]; then
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_displayvol}) ${out_filename_displayvol} --no-progress
-                if [ ! -e ${out_filename_displayvol} ]; then
-                    echo "Atlas displayvol not found on S3: " $(basename ${out_filename_displayvol})
-                    exit 1
+                if [ "x${out_filename_displayvol}" != x ] && [ ! -e ${out_filename_displayvol} ]; then
+                    aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_displayvol}) ${out_filename_displayvol} --no-progress
+                    if [ ! -e ${out_filename_displayvol} ]; then
+                        echo "Atlas displayvol not found on S3: " $(basename ${out_filename_displayvol})
+                        exit 1
+                    fi
                 fi
-            fi
-            
-            if [ "x${out_filename_ciftitemplate}" != x ] && [ ! -e ${out_filename_ciftitemplate} ]; then
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_ciftitemplate}) ${out_filename_ciftitemplate} --no-progress
-                if [ ! -e ${out_filename_ciftitemplate} ]; then
-                    echo "Atlas ciftitemplate not found on S3: " $(basename ${out_filename_ciftitemplate})
-                    exit 1
+                
+                if [ "x${out_filename_ciftitemplate}" != x ] && [ ! -e ${out_filename_ciftitemplate} ]; then
+                    aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_ciftitemplate}) ${out_filename_ciftitemplate} --no-progress
+                    if [ ! -e ${out_filename_ciftitemplate} ]; then
+                        echo "Atlas ciftitemplate not found on S3: " $(basename ${out_filename_ciftitemplate})
+                        exit 1
+                    fi
                 fi
-            fi
-            
-            if [ "x${out_filename_roisize}" != x ] && [ ! -e ${out_filename_roisize} ]; then
-                aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_roisize}) ${out_filename_roisize} --no-progress
-                if [ ! -e ${out_filename_roisize} ]; then
-                    echo "Atlas region size not found on S3: " $(basename ${out_filename_roisize})
-                    exit 1
+                
+                if [ "x${out_filename_roisize}" != x ] && [ ! -e ${out_filename_roisize} ]; then
+                    aws s3 cp s3://${s3nemoroot}/nemo_atlases/$(basename ${out_filename_roisize}) ${out_filename_roisize} --no-progress
+                    if [ ! -e ${out_filename_roisize} ]; then
+                        echo "Atlas region size not found on S3: " $(basename ${out_filename_roisize})
+                        exit 1
+                    fi
                 fi
             fi
             
@@ -593,19 +681,26 @@ else
     input_status_tagstring+="&input_checks=${input_check_status}"
 fi
 
+
 #copy lesion glassbrain image back to input bucket so web interface can show the result
 #aws s3 cp ${input_lesion_image} s3://${s3path}${status_suffix} --no-progress
-aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${input_lesion_image} --tagging ${input_status_tagstring}
+if [ ${isAWS} = 1 ]; then
+    aws s3api put-object --bucket ${inputbucket} --key ${input_status_key} --body ${input_lesion_image} --tagging ${input_status_tagstring}
+fi
 
 #delete the input file from the s3 bucket
 if [ "${do_debug}" != "true" ]; then
-    aws s3 rm s3://${s3path}
+    if [ ${isAWS} = 1 ]; then
+        aws s3 rm s3://${s3path}
+    fi
 fi
 
 if [ ${input_check_status} != "success" ]; then
     #if we failed input checks, don't proceed
     if [ "${do_debug}" != "true" ]; then
-        sudo shutdown -h now
+        if [ ${isAWS} = 1 ]; then
+            sudo shutdown -h now
+        fi
     else
         exit 0
     fi
@@ -651,10 +746,12 @@ for tracking_algo in ${tracking_algo_list}; do
         inputfile_noext=$(basename ${inputfile} | sed -E 's/(\.nii|\.nii\.gz)$//i')
         outputbase_infile=${outputdir}/${inputfile_noext}_${outputsuffix_thisalgo}
         
-        #postpone the shutdown timer for each mask
-        #(if any lesion mask is still running after 12 hours, shut down)
-        sudo shutdown -h +${maximum_runtime_minutes_per_mask}
-        
+        if [ ${isAWS} = 1 ]; then
+            #postpone the shutdown timer for each mask
+            #(if any lesion mask is still running after 12 hours, shut down)
+            sudo shutdown -h +${maximum_runtime_minutes_per_mask}
+        fi
+
         echo "##########################"  >> ${logfile}
         echo "# Processing " $(basename ${inputfile}) >> ${logfile}
         date --utc >> ${logfile} #print starting timestamp for each lesion mask to log
@@ -713,6 +810,13 @@ for tracking_algo in ${tracking_algo_list}; do
             outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_stdev.mat
             ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
             
+            #this is going to be the reference SC file to compare nemoSC lesion outputs to (or for domain adaptation)
+            outfile_nemodenom=${WORKROOT}/refsubj_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
+            if [ ! -e ${outfile_nemodenom} ]; then
+                ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_nemodenom} --onlydenom
+            fi
+            cp -f ${outfile_nemodenom} ${outputdir}/$(basename ${outfile_nemodenom})
+            
             #if a file was provided with region volume information, use that to produce a volnorm version of the nemoSC
             if [ "${out_filename_roisize}" = "x" ] || [ ! -e "${out_filename_roisize}" ]; then
                 continue
@@ -720,6 +824,12 @@ for tracking_algo in ${tracking_algo_list}; do
             outfile_scmean=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
             outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
             ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
+            
+            outfile_nemodenom=${WORKROOT}/refsubj_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
+            if [ ! -e ${outfile_nemodenom} ]; then
+                ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_nemodenom} --onlydenom --roivol ${out_filename_roisize}
+            fi
+            cp -f ${outfile_nemodenom} ${outputdir}/$(basename ${outfile_nemodenom})
         done
         
         
@@ -816,24 +926,29 @@ for tracking_algo in ${tracking_algo_list}; do
             fi
         done
 
-        if [ "${do_s3direct}"  = "1" ]; then
-            #copy all data to a new s3 bucket
-            aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
-            #update ziplistfile as we go, so we can delete files as we go
-            (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
-            (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
-            #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
-            ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
+        if [ ${isAWS} = 1 ]; then
+            if [ "${do_s3direct}"  = "1" ]; then
+                #copy all data to a new s3 bucket
+                aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
+                #update ziplistfile as we go, so we can delete files as we go
+                (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
+                (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
+                #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
+                ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
+            fi
         fi
     done < ${inputfile_listfile}
     
     #save subject list to file in output directory:
     ${PYCMD} -c 'import numpy as np; chunklist=np.load("'${NEMODATA}/nemo${algostr}_chunklist.npz'"); [print(x) for x in chunklist["subjects"]]' > ${outputdir}/nemo_hcp_reference_subjects.txt
     
+    
     #delete temporary files used by this tracking algo.
     #this helps save space if we are looping through multiple algos
     if [ "${do_debug}" != "true" ]; then
-        ls -d ${NEMODATA}/chunkfiles${algostr} ${NEMODATA}/nemo${algostr}_*.npy ${NEMODATA}/nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+        if [ ${isAWS} = 1 ]; then
+            ls -d ${NEMODATA}/chunkfiles${algostr} ${NEMODATA}/nemo${algostr}_*.npy ${NEMODATA}/nemo${algostr}_*.npz 2>/dev/null | xargs rm -rf
+        fi
     fi
 done
 ##### END ALGO LOOP
@@ -900,6 +1015,11 @@ for out_name in ${output_namelist}; do
     cp -f ${out_roilistfile} ${outputdir}/
 done
 
+
+if [ ${isAWS} = 0 ]; then
+    exit 0
+fi
+
 uploadjson=${outputbase}_upload_info.json
 echo "{}" > ${uploadjson}
 
@@ -925,7 +1045,7 @@ if [ "${do_s3direct}"  = "1" ]; then
 
     #copy any remaining files to s3 bucket
     aws s3 sync ./ ${s3direct_resultpath} --exclude "*_ziplist.txt" --exclude "*_upload_info.json" --no-progress
-    
+
     #now copy files for email
     #(note: for the s3direct version, the filename isn't downloadable so it doesn't need to be .png or .zip or anything)
     #(It's just for tagging purposes, and forming the subject line in the email)
