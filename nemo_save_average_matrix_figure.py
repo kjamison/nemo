@@ -4,12 +4,14 @@ import numpy as np
 import pickle
 from matplotlib import pyplot as plt
 from scipy import sparse
+from scipy.io import loadmat
 
 def argument_parse_savematrixfig(argv):
     parser=argparse.ArgumentParser(description='Save a matrix image for an input chacoconn or average or multiple input chacoconns')
     
     parser.add_argument('--out','-o',action='store', dest='outfile', required=True,help='output image file (eg: chacoconn.png)')
     parser.add_argument('--cmap','--colormap','-c',action='store', dest='colormap',help='matplotlib colormap name (eg: jet,hot,...). Default: hot')
+    parser.add_argument('--cmap_sym','--colormap_sym',action='store_true', dest='colormap_sym',help='colormap symmetric around zero')
     parser.add_argument('--title','-t',action='store',dest='title',help='title to draw on top of figure')
     parser.add_argument('--sym','-s',action='store_true',dest='sym',help='Make triangular matrix symmetric')
     parser.add_argument('--maxsize',action='store',dest='maxsize',type=float,default=1000,help='Maximum matrix dimension to display. Default: 1000')
@@ -38,6 +40,13 @@ def load_input(inputfile,sym=False,maxsize=None):
         imgdata=np.loadtxt(inputfile)
     elif inputfile.lower().endswith(".pkl"):
         imgdata=pickle.load(open(inputfile,"rb"))
+    elif inputfile.lower().endswith(".mat"):
+        M=loadmat(inputfile,simplify_cells=True)
+        Mdata=[M[f] for f in ['C','SC','FC','data'] if f in M]
+        if len(Mdata) > 0:
+            imgdata=Mdata[0]
+        else:
+            return None
     if sparse.issparse(imgdata):
         if maxsize is not None and max(imgdata.shape) > maxsize:
             return imgdata
@@ -51,7 +60,12 @@ def average_input_matrices(inputlist,sym=False,maxsize=None):
     imgshape=None
     
     for i in inputlist:
-        imgdata=load_input(i,sym,maxsize=maxsize)
+        if isinstance(i,str):
+            imgdata=load_input(i,sym,maxsize=maxsize)
+        else:
+            imgdata=i
+        if imgdata is None:
+            continue
         if sparse.issparse(imgdata):
             return None, None
         imgdata[np.isnan(imgdata)]=0
@@ -72,14 +86,19 @@ def average_input_matrices(inputlist,sym=False,maxsize=None):
     
     return avgdata, imgshape
 
-def save_matrix_fig(outputfile, inputlist, colormap=None,title=None,sym=False,maxsize=None):
+def save_matrix_fig(outputfile, inputlist, colormap=None,title=None,sym=False,maxsize=None,colormap_sym=False):
     avgdata,imgshape = average_input_matrices(inputlist,sym=sym,maxsize=maxsize)
     if avgdata is None:
         return None
     if colormap is None:
         colormap="hot"
+    if colormap_sym:
+        v=np.max(np.abs(avgdata))
+        clim=[-v, v]
+    else:
+        clim=None
     fig=plt.figure()
-    ax=plt.imshow(avgdata,cmap=colormap)
+    ax=plt.imshow(avgdata,cmap=colormap,clim=clim)
     plt.xlabel('ROI')
     plt.ylabel('ROI')
     fig.colorbar(ax)
@@ -92,7 +111,13 @@ def save_matrix_fig(outputfile, inputlist, colormap=None,title=None,sym=False,ma
 
 if __name__ == "__main__":
     args=argument_parse_savematrixfig(sys.argv[1:])
-    imgshape=save_matrix_fig(outputfile=args.outfile,inputlist=args.connfile,colormap=args.colormap,title=args.title,sym=args.sym,maxsize=args.maxsize)
+    imgshape=save_matrix_fig(outputfile=args.outfile,
+                             inputlist=args.connfile,
+                             colormap=args.colormap,
+                             title=args.title,
+                             sym=args.sym,
+                             maxsize=args.maxsize,
+                             colormap_sym=args.colormap_sym)
     if imgshape is None:
         #mismatched input sizes
         sys.exit(1)

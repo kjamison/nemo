@@ -1,6 +1,9 @@
 import nibabel as nib
 from nilearn import plotting
 from scipy import sparse
+from scipy.io import loadmat
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import sys
 import argparse 
 import numpy as np
@@ -11,6 +14,7 @@ def argument_parse(argv):
     
     parser.add_argument('--out','-o',action='store', dest='outfile', help='output image file (eg: glassbrain.png)')
     parser.add_argument('--cmap','--colormap','-c',action='store', dest='colormap',help='matplotlib colormap name (eg: jet,hot,...). Default: cold_white_hot')
+    parser.add_argument('--cmap_sym','--colormap_sym',action='store_true', dest='colormap_sym',help='colormap symmetric around zero')
     parser.add_argument('volumefile',nargs='*',action='store',help='one or more input volumes (eg: .nii files)')
     parser.add_argument('--binarize','-b',action='store_true',help='Binarize each input volume (!=0)')
     parser.add_argument('--parcellation','-p',dest='parcellation',help='Parcellation to fill')
@@ -40,6 +44,13 @@ def load_input(inputfile):
         imgdata=np.loadtxt(inputfile)
     elif inputfile.lower().endswith(".pkl"):
         imgdata=pickle.load(open(inputfile,"rb"))
+    elif inputfile.lower().endswith(".mat"):
+        M=loadmat(inputfile,simplify_cells=True)
+        Mdata=[M[f] for f in ['C','SC','FC','data'] if f in M]
+        if len(Mdata) > 0:
+            imgdata=Mdata[0]
+        else:
+            return None
     if sparse.issparse(imgdata):
         imgdata=imgdata.toarray()
     return imgdata
@@ -50,6 +61,8 @@ def average_input_list(inputlist, binarize=False):
     
     for i in inputlist:
         imgdata=load_input(i)
+        if imgdata is None:
+            continue
         imgdata[np.isnan(imgdata)]=0
         if binarize:
             imgdata=(imgdata!=0).astype(np.float32)
@@ -70,7 +83,8 @@ def parcellation_to_volume(parcdata, parcvol):
     uparc,uparc_idx=np.unique(parcvol[parcmask],return_inverse=True)
     
     if parcdata.shape[0] == len(uparc):
-        pass
+        if parcdata.ndim == 1:
+            parcdata=parcdata[:,np.newaxis]
     elif parcdata.shape[1] == len(uparc):
         parcdata=parcdata.T
     elif parcdata.shape[0] >= max(uparc):
@@ -88,7 +102,7 @@ def parcellation_to_volume(parcdata, parcvol):
     
     return newvol
 
-def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None, maxpercentile=None, maxscale=None, maxvalue=None):
+def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_hot", parcellation_file=None, maxpercentile=None, maxscale=None, maxvalue=None,colormap_sym=False):
     avgdata, imgshape = average_input_list(inputlist, binarize=binarize)
     
     if outputfile is None:
@@ -102,23 +116,43 @@ def save_glassbrain(outputfile, inputlist, binarize=False, colormap="cold_white_
         parcvol=refimg.get_fdata()
         avgdata=parcellation_to_volume(avgdata,parcvol)
 
+
     vmax=None
     if maxvalue is not None:
         vmax=maxvalue
     elif maxscale is not None:
-        vmax=maxscale*np.max(avgdata)
+        vmax=maxscale*np.max(np.abs(avgdata))
     elif maxpercentile is not None:
-        vmax=np.percentile(avgdata,maxpercentile)
+        vmax=np.percentile(np.abs(avgdata),maxpercentile)
 
+    vmin=None
+    plot_abs=True
+    if colormap_sym:
+        if vmax is not None:
+            vmin=-vmax
+        plot_abs=False
+    
+    if colormap == "jet_half":
+        #custom colormap to match old plotting behavior 
+        #(where 0 started halfway up the color map)
+        try:
+            n=256
+            newcolors = plt.get_cmap("jet", n*2)(range(n*2))
+            newcolors=newcolors[n:,:3]
+            colormap=LinearSegmentedColormap.from_list("jet_half", newcolors,N=n)
+        except:
+            colormap="jet"
+    
     imgavg=nib.Nifti1Image(avgdata,affine=refimg.affine, header=refimg.header)
-    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,vmax=vmax,threshold=0)
+    #plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,vmax=vmax,threshold=0)
+    plotting.plot_glass_brain(imgavg,output_file=outputfile,cmap=colormap,colorbar=True,threshold=0, symmetric_cbar=colormap_sym,vmin=vmin,vmax=vmax,plot_abs=plot_abs)
 
     return imgshape
 
 if __name__ == "__main__":
     args=argument_parse(sys.argv[1:])
     imgshape=save_glassbrain(args.outfile,args.volumefile,binarize=args.binarize,colormap=args.colormap,
-        parcellation_file=args.parcellation,maxpercentile=args.maxpercentile,maxscale=args.maxscale,maxvalue=args.maxvalue)
+        parcellation_file=args.parcellation,maxpercentile=args.maxpercentile,maxscale=args.maxscale,maxvalue=args.maxvalue,colormap_sym=args.colormap_sym)
     if imgshape is None:
         #mismatched input sizes
         sys.exit(1)
