@@ -299,13 +299,13 @@ scriptfiles="nemo_lesion_to_chaco.py nemo_save_average_glassbrain.py nemo_save_a
 if [ ${isAWS} = 1 ]; then
     if [ "${do_debug}" != "true" ]; then
         for f in $scriptfiles; do
-            aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
+            aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/${f} --no-progress
         done
     else
         #in debug mode, only copy updated scripts if they weren't already available
         for f in $scriptfiles; do
             if [ ! -e ${NEMODIR}/${f} ]; then
-                aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/ --no-progress
+                aws s3 cp s3://${config_bucket}/nemo_scripts/${f} ${NEMODIR}/${f} --no-progress
             fi
         done
     fi
@@ -317,6 +317,7 @@ PYCMD="python"
 
 ############
 outputsuffix_start="nemo_output"
+refsubj_prefix="nemorefsubj"
 
 outputdir=${WORKROOT}/${outputsuffix_start}_${s3filename_noext}
 outputsuffix=${outputsuffix_start}_${tracking_algo_selection}
@@ -609,7 +610,10 @@ for o in $(echo ${output_prefix_list} | tr "," " "); do
         #make sure we have something to append to the list
         out_filename_roisize="x"
     fi
-    
+    if [ "x${out_numroi}" = x ]; then
+        #make sure we have something to append to the list
+        out_numroi="x"
+    fi
     output_namelist+=" ${out_name}"
     output_pairwiselist+=" ${out_pairwise}"
     output_allreflist+=" ${out_allref}"
@@ -668,7 +672,7 @@ if [ "${input_check_status}" = "success" ]; then
     ${PYCMD} ${NEMOSCRIPTDIR}/nemo_save_average_glassbrain.py --out ${input_lesion_image} --colormap Spectral_r ${binarizearg} $(cat ${inputfile_listfile})
     if [ ! -e "${input_lesion_image}" ]; then
         input_check_status="error"
-        failmessage="Unable to validate input volumne(s)"
+        failmessage="Unable to validate input volume(s)"
     fi
 fi
 
@@ -811,7 +815,7 @@ for tracking_algo in ${tracking_algo_list}; do
             ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd}
             
             #this is going to be the reference SC file to compare nemoSC lesion outputs to (or for domain adaptation)
-            outfile_nemodenom=${WORKROOT}/refsubj_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
+            outfile_nemodenom=${WORKROOT}/${refsubj_prefix}_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_mean.mat
             if [ ! -e ${outfile_nemodenom} ]; then
                 ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_nemodenom} --onlydenom
             fi
@@ -825,7 +829,7 @@ for tracking_algo in ${tracking_algo_list}; do
             outfile_scstd=${outputbase_infile}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_stdev.mat
             ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_scmean} --outputstdev ${outfile_scstd} --roivol ${out_filename_roisize}
             
-            outfile_nemodenom=${WORKROOT}/refsubj_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
+            outfile_nemodenom=${WORKROOT}/${refsubj_prefix}_${outputsuffix_thisalgo}_chacoconn_${out_name}_nemoSC${siftstr}_volnorm_mean.mat
             if [ ! -e ${outfile_nemodenom} ]; then
                 ${PYCMD} ${NEMOSCRIPTDIR}/chacoconn_to_nemosc.py --chacoconn ${outfile_allref} --denom ${outfile_denom} --output ${outfile_nemodenom} --onlydenom --roivol ${out_filename_roisize}
             fi
