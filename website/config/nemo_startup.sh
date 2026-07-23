@@ -23,6 +23,15 @@ fi
 
 ###################################
 
+WORKROOT=
+NEMODIR=
+NEMODATA=
+NEMOSCRIPTDIR=
+NEMOJSON=
+NEMOJSON_EXTRA=
+NEMOINPUTFILE=
+NEMOOUTPUTDIR=
+
 if [ ${isAWS} = 1 ]; then
     if [ -e $HOME/fsl ]; then
             export FSLDIR=$HOME/fsl
@@ -32,37 +41,53 @@ if [ ${isAWS} = 1 ]; then
     export PATH=/home/ubuntu/anaconda3/bin:$PATH
     export PATH=/home/ubuntu/bin:$PATH
 
-    WORKROOT=${HOME}
-    NEMODIR=${HOME}/nemo2
-    NEMODATA=${HOME}/nemodata
+    WORKROOT=$(echo ${NEMO_WORK_ROOT} $HOME | awk '{print $1}')
+    NEMODIR=$(echo ${NEMO_SCRIPT_DIR} $HOME/nemo2 | awk '{print $1}')
+    NEMODATA=$(echo ${NEMO_DATA_DIR} $HOME/nemodata | awk '{print $1}')
 
     NEMOSCRIPTDIR=${NEMODIR}
 
-    ATLASDIR=${HOME}/nemo_atlases
+    ATLASDIR=$(echo ${NEMO_ATLAS_DIR} $HOME/nemo_atlases | awk '{print $1}')
     atlaslistfile=${ATLASDIR}/atlas_list.json
 
     mkdir -p ${NEMODIR}
     mkdir -p ${NEMODATA}
     mkdir -p ${WORKROOT}
 
+    NEMOJSON_EXTRA=${NEMO_INPUT_CONFIG_EXTRA}
 else
+
+    #environment variables:
+    # NEMO_RUNNING_ON_AWS: (default = 0). 1 = this script running on AWS and should grab config info and download/upload to/from S3 buckets
+    # NEMO_SCRIPT_DIR: (default /nemo2). Directory where nemo bash+python scripts are located
+    # NEMO_DATA_DIR: (default /nemodata2). Directory where nemo database (endpoints, chunk lists, chunk directories, etc)
+    # NEMO_WORK_ROOT: (default current dir). Temporary space where files are created while running
+    # NEMO_OUTPUT_DIR: (default inside WORKDIR). Directory to copy outputs
+    # NEMO_INPUT_CONFIG: (default /nemo_tags.json). json file specifying configuration options for this job (can be based on config.json from website or previous runs)
+    # NEMO_INPUT_LESION: (default = read from config). nii.gz/zip containing one or more lesion masks
+
 
     WORKROOT=$(echo ${NEMO_WORK_ROOT} $(pwd) | awk '{print $1}')
     NEMODIR=$(echo ${NEMO_SCRIPT_DIR} /nemo2 | awk '{print $1}')
     NEMODATA=$(echo ${NEMO_DATA_DIR} /nemodata | awk '{print $1}')
 
     NEMOJSON=$(echo ${NEMO_INPUT_CONFIG} /nemo_tags.json | awk '{print $1}')
-    NEMOINPUTFILE=${NEMO_INPUT_FILE}
+    NEMOINPUTFILE=${NEMO_INPUT_LESION}
+    NEMOOUTPUTDIR=${NEMO_OUTPUT_DIR}
 
     ATLASDIR=$(echo ${NEMO_ATLAS_DIR} /nemo_atlases | awk '{print $1}')
     atlaslistfile=${ATLASDIR}/atlas_list.json
 
-
     NEMOSCRIPTDIR=${NEMODIR}
+    NEMOJSON_EXTRA=${NEMO_INPUT_CONFIG_EXTRA}
 
     mkdir -p ${NEMODIR}
     mkdir -p ${NEMODATA}
     mkdir -p ${WORKROOT}
+
+    if [ -n "${NEMOOUTPUTDIR}" ]; then
+        mkdir -p ${NEMOOUTPUTDIR}
+    fi
 fi
 ###################################
 
@@ -96,7 +121,13 @@ fi
 #If already key:value, leave it alone
 is_config_json_array=$(jq --raw-output 'if type == "array" and all(.[]; type == "object" and has("Key") and has("Value")) then "yes" else "no" end' ${tagfile})
 if [ "${is_config_json_array}" = "yes" ]; then
-	echo "{" $(jq '.[] | .Key' ${tagfile} | while read k; do echo "$k": $(jq '.[] | select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.'  > $WORKROOT/tmp_config.json
+	echo "{" $(jq '.[] | .Key' ${tagfile} | while read k; do echo "$k": $(jq '.[] | select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > $WORKROOT/tmp_config.json
+    mv $WORKROOT/tmp_config.json ${tagfile}
+fi
+
+if [ -n "${NEMOJSON_EXTRA}" ] && [ -e "${NEMOJSON_EXTRA}" ]; then
+    #option to add additional tags (e.g., for debugging on AWS)
+    jq -s '.[0] * .[1]' ${tagfile} ${NEMOJSON_EXTRA}  > $WORKROOT/tmp_config.json
     mv $WORKROOT/tmp_config.json ${tagfile}
 fi
 
@@ -336,6 +367,8 @@ output_config_file=${outputbase}_${origtimestamp}_config.json
 output_config_s3file=s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_config.json
 #echo "{" $(jq '.Key' ${tagfile} | while read k; do echo "$k": $(jq 'select(.Key=='$k') | .Value' ${tagfile} | head -n1) ","; done) | sed -E 's#,[[:space:]]*$#}#' | jq '.' > ${output_config_file}
 cp -f ${tagfile} ${output_config_file}
+
+jq '{nemo_version,nemo_version_date}' ${tagfile} > ${outputdir}/nemo_version_info.json
 
 if [ ${isAWS} = 1 ]; then
     aws s3 cp ${output_config_file} ${output_config_s3file} --no-progress
@@ -703,7 +736,11 @@ if [ ${input_check_status} != "success" ]; then
     #if we failed input checks, don't proceed
     if [ "${do_debug}" != "true" ]; then
         if [ ${isAWS} = 1 ]; then
+            if [ -e "${NEMO_MONITOR_DIR}" ]; then
+                touch ${NEMO_MONITOR_DIR}/shutdown
+            else
             sudo shutdown -h now
+            fi
         fi
     else
         exit 0
@@ -753,7 +790,12 @@ for tracking_algo in ${tracking_algo_list}; do
         if [ ${isAWS} = 1 ]; then
             #postpone the shutdown timer for each mask
             #(if any lesion mask is still running after 12 hours, shut down)
+            if [ -e "${NEMO_MONITOR_DIR}" ]; then
+                touch ${NEMO_MONITOR_DIR}/heartbeat
+            else
             sudo shutdown -h +${maximum_runtime_minutes_per_mask}
+            fi
+            
         fi
 
         echo "##########################"  >> ${logfile}
@@ -1122,5 +1164,11 @@ aws s3 cp ${finaljson} ${output_config_s3file} --no-progress
 aws s3 cp ${logfile} s3://${outputbucket}/logs/${origtimestamp}_${s3filename_noext}_nemo_log.txt --no-progress
 
 if [ "${do_debug}" != "true" ]; then
+    if [ ${isAWS} = 1 ]; then
+        if [ -e "${NEMO_MONITOR_DIR}" ]; then
+            touch ${NEMO_MONITOR_DIR}/shutdown
+        else
     sudo shutdown -h now
+        fi
+    fi
 fi
