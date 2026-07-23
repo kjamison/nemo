@@ -19,6 +19,7 @@ def argument_parse_savegraphbrain(argv):
     parser.add_argument('--nodefile',action='store',dest='nodefile',help='File with ROI coordinates for graphbrain plotting. Either .nii.gz or .txt')
     parser.add_argument('--nodeview',action='store',dest='nodeview',default="lzr", help='Graphbrain view (eg: lzr, ortho). Default: lzr')
     parser.add_argument('--cmap_sym','--colormap_sym',action='store_true', dest='colormap_sym',help='colormap symmetric around zero')
+    parser.add_argument('--maxvalue',action='store', dest='maxvalue',help='colormap max')
     parser.add_argument('--maxedgecount',action='store',dest='maxedges_count',type=float,default=1000, help='Maximum number of edges for graphbrain view. Default: 1000. Use smallest edge count from (count,percentile)')
     parser.add_argument('--maxedgepercentile',action='store',dest='maxedges_percentile',type=float,default=90, help='Edge strength percentile for graphbrain view. Default: 90. Use smallest edge count from (count,percentile)')
     parser.add_argument('--bgmaxscale',action='store',type=float,help='For graphbrain with parcellated glassbrain background colormap=[0 scale*(abs(max))]')
@@ -84,7 +85,7 @@ def has_drawable_edges(adj, threshold=None):
     return np.any(np.abs(vals) > float(threshold))
 
 def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=None ,maxsize=None, nodeview=None, maxedges=1000, maxedgeperc=90,
-        bginputlist=None, bgparcellation=None, bgcolormap=None, bgmaxscale=None, bgmaxpercentile=None, colormap_sym=False):
+        bginputlist=None, bgparcellation=None, bgcolormap=None, bgmaxscale=None, bgmaxpercentile=None, colormap_sym=False, maxvalue=None, brain_alpha=.7, nodesize=None):
     
     avgdata,imgshape = average_input_matrices(inputlist,sym=True,maxsize=maxsize)
     if imgshape is None:
@@ -104,17 +105,24 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
     maxnodesize=50
     nodesize_range=[1,maxnodesize]
     
+    vmax_abs=np.max(np.abs(avgdata))
+    vmax=np.max(avgdata)
+    if maxvalue is not None:
+        vmax_abs=maxvalue
+        vmax=maxvalue
     if colormap_sym:
-        v=np.max(np.abs(avgdata))
-        edge_range=[-v,v]
+        edge_range=[-vmax_abs,vmax_abs]
     else:
-        edge_range=[0,np.max(avgdata)]
+        edge_range=[0,vmax]
     #vecdata_norm=(vecdata-np.min(vecdata))/(np.max(vecdata)-np.min(vecdata))
     #nodesizes=vecdata_norm*(nodesize_range[1]-nodesize_range[0])+nodesize_range[0]
     
-    nodesizes=10
-    if num_nodes > 100:
-        nodesizes=5
+    if nodesize is not None:
+        nodesizes=nodesize
+    else:
+        nodesizes=10
+        if num_nodes > 100:
+            nodesizes=5
     
     num_edges=(num_nodes*num_nodes-num_nodes)/2
     edge_threshold=(100-100*maxedges/num_edges)
@@ -129,7 +137,7 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
         #disp_outfile=outputfile
         plotting.plot_connectome(avgdata,nodexyz, edge_threshold=edge_threshold_str,edge_cmap=colormap,display_mode=nodeview,
             node_size=nodesizes,edge_vmin=edge_range[0],edge_vmax=edge_range[1],colorbar=do_colorbar,title=title,output_file=outputfile,
-            black_bg=False)
+            black_bg=False, alpha=brain_alpha)
     else:
         #in background case, load and plot the glassbrain background, then use the nilearn internal 
         #add_graph function to plot the lines
@@ -155,7 +163,7 @@ def save_graphbrain_fig(outputfile, inputlist, nodefile, colormap=None, title=No
             bgvmax=np.percentile(bgavgdata,bgmaxpercentile)
             
         bgimgavg=nib.Nifti1Image(bgavgdata,affine=refimg.affine, header=refimg.header)
-        display=plotting.plot_glass_brain(bgimgavg,cmap=bgcolormap,title=title,vmax=bgvmax,colorbar=False,threshold=0,black_bg=False)
+        display=plotting.plot_glass_brain(bgimgavg,cmap=bgcolormap,title=title,vmax=bgvmax,colorbar=False,threshold=0,black_bg=False, alpha=brain_alpha)
         
         display.add_graph(avgdata, nodexyz,
                           node_size=nodesizes,
