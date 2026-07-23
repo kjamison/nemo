@@ -975,11 +975,28 @@ for tracking_algo in ${tracking_algo_list}; do
         if [ ${isAWS} = 1 ]; then
             if [ "${do_s3direct}"  = "1" ]; then
                 #copy all data to a new s3 bucket
-                aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} --exclude "*" --include "${inputfile_noext}_*" --no-progress
+                aws s3 cp --recursive ${outputdir}/ ${s3direct_resultpath} \
+                    --exclude "*" \
+                    --include "${inputfile_noext}_*" \
+                    --no-progress
+                
                 #update ziplistfile as we go, so we can delete files as we go
                 (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
                 (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
                 #delete everything for this lesion mask except mean nifti and png (needed for listmean possibly and for upload)
+                ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
+            fi
+        else
+            if [ -n "${NEMOOUTPUTDIR}" ]; then
+                #update ziplistfile as we go, so we can delete files as we go
+                (cd ${outputdir} && du -h --apparent-size ${inputfile_noext}_* >> ${ziplistfile} )
+                (cd ${outputdir} && du -b ${inputfile_noext}_* >> ${ziplistfile_bytes} )
+                rsync -av \
+                    --include="*/" \
+                    --include="${inputfile_noext}_*" \
+                    --exclude="*" \
+                    "${outputdir}/" \
+                    "${NEMOOUTPUTDIR}/"
                 ls ${outputdir}/${inputfile_noext}_* | grep -vE '(mean.nii.gz|mean.pkl|.png|.json|nemoSC.*.mat|_log.txt)$' | xargs rm -f
             fi
         fi
@@ -1063,6 +1080,51 @@ done
 
 
 if [ ${isAWS} = 0 ]; then
+    uploadjson=${outputbase}_log_info.json
+    echo "{}" > ${uploadjson}
+
+    cd ${outputdir}
+
+    du -h --apparent-size * >> ${ziplistfile}
+    sort -uk2 ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
+    grep -vE '_upload_info.json$' ${ziplistfile} > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
+    grep -vE $(basename ${ziplistfile})'$' ${ziplistfile} | grep -vE $(basename ${ziplistfile_bytes})'$' > ${ziplistfile}.tmp && mv ${ziplistfile}.tmp ${ziplistfile}
+    
+    #outputsize=$(du -hs ./ | awk '{print $1}')
+    outputsize_bytes=$(sort -uk2 ${ziplistfile_bytes} | awk 'BEGIN{a=0}{a+=$1}END{print a}')
+    #  if(a>1024*1024*1024}')
+    outputsize=$(echo ${outputsize_bytes} | awk '{if($1>1024*1024*1024){printf "%.1fG",$1/(1024*1024*1024)} else if($1>1024*1024){printf "%.1fM",$1/(1024*1024)} else if($1>1024){printf "%.1fK",$1/(1024)} else {print $1}}')
+    rm -f ${ziplistfile_bytes}
+    outputsize_unzipped=""
+
+    endtime=$(date +%s)
+    duration=$(echo "$endtime - $starttime" | bc -l)
+
+    #build a json file with info we will need to send the email
+    jq --arg email "${email}" --arg duration "${duration}" --arg status "${finalstatus}" --arg origfilename "${origfilename_raw}" \
+        --arg inputfilecount "${inputfile_count}" --arg submittime "${origtimestamp_unix}" --arg successcount "${success_count}" \
+        --arg inputfilecount_orig "${inputfile_count_orig}" --arg outputsize "${outputsize}" --arg outputsize_unzipped "${outputsize_unzipped}" \
+        --arg outputfile_key "${outputkey}" \
+        '.+{duration:$duration, status:$status, origfilename:$origfilename, inputfilecount:$inputfilecount,
+        submittime:$submittime, successcount:$successcount, inputfilecount_orig:$inputfilecount_orig, outputsize:$outputsize,
+        }' < ${uploadjson} > ${uploadjson}.tmp && mv ${uploadjson}.tmp ${uploadjson}
+        
+    if [ -n "${NEMOOUTPUTDIR}" ]; then
+
+        rsync -av ./ "${NEMOOUTPUTDIR}/" \
+            --exclude="*_ziplist.txt" \
+            --exclude="*_upload_info.json"
+
+        cp -f ${logfile} ${NEMOOUTPUTDIR}/${origtimestamp}_${s3filename_noext}_nemorunner_log.txt
+
+        cp -f ${uploadjson} ${NEMOOUTPUTDIR}/
+        
+        if [ "${success_count}" -gt "${success_count_minimum}" ]; then
+            rsync -av --include='*_listmean.png' --exclude='*' ./ ${NEMOOUTPUTDIR}/
+        else
+            rsync -av --include='*.png' --exclude='*' ./ ${NEMOOUTPUTDIR}/
+        fi
+    fi
     exit 0
 fi
 
